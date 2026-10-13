@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DrowseGuard – Driver Drowsiness Detection</title>
-  <meta name="description" content="Real-time AI-powered driver drowsiness detection using facial landmark analysis. Stay safe on the road with DrowseGuard." />
+  <title>DrowseGuard – Eye-Closure Research Prototype</title>
+  <meta name="description" content="Browser-based research prototype comparing facial landmark models for eye-closure monitoring." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -27,9 +27,9 @@
           <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
       </div>
-      <h2>DROWSINESS DETECTED!</h2>
-      <p>You appear to be falling asleep. Please pull over safely and rest.</p>
-      <button id="dismissAlert" onclick="dismissAlert()">I'm Awake – Dismiss</button>
+      <h2 id="alertTitle">PROLONGED EYE CLOSURE</h2>
+      <p id="alertText">The configured eye-closure rule was reached. This research prototype cannot diagnose drowsiness.</p>
+      <button id="dismissAlert" onclick="dismissAlert()">Acknowledge</button>
     </div>
   </div>
 
@@ -61,8 +61,8 @@
     <section class="video-panel">
       <div class="panel-header">
         <h2>Live Camera Feed</h2>
-        <div class="rec-badge">
-          <span class="rec-dot"></span> LIVE
+        <div class="rec-badge" id="cameraBadge">
+          <span class="rec-dot"></span><span id="cameraBadgeText">CAMERA OFF</span>
         </div>
       </div>
 
@@ -104,6 +104,14 @@
           Reset
         </button>
       </div>
+
+      <div class="card model-select-card">
+        <label for="modelSelect" class="model-select-label">Landmark model</label>
+        <select id="modelSelect" class="model-select" onchange="updateSelectedModel(this.value)">
+          <option value="mediapipe" selected>MediaPipe Face Landmarker</option>
+        </select>
+        <p class="evaluation-note">MediaPipe is the active model for this prototype. The same EAR and alert rules are used for monitoring.</p>
+      </div>
     </section>
 
     <!-- Right Panel: Stats & Info -->
@@ -111,7 +119,7 @@
 
       <!-- Drowsiness Level Gauge -->
       <div class="card gauge-card">
-        <h3 class="card-title">Drowsiness Level</h3>
+        <h3 class="card-title">Rule-based Closure Indicator</h3>
         <div class="gauge-container">
           <svg class="gauge-svg" viewBox="0 0 200 120">
             <!-- Background arc -->
@@ -135,6 +143,23 @@
           <canvas id="earSpark" width="200" height="40" style="display:block; margin-top:8px;"></canvas>
           <div class="gauge-label" id="gaugeLabel">Alert</div>
         </div>
+      </div>
+
+      <div class="card metric-card perclos-card">
+        <div class="metric-icon eye-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/>
+            <path d="M12 9v3l2 1"/>
+          </svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">PERCLOS · rolling 60 s</span>
+          <span class="metric-value" id="perclosValue">—</span>
+        </div>
+        <div class="metric-bar-container">
+          <div class="metric-bar danger-bar" id="perclosBar" style="width: 0%"></div>
+        </div>
+        <div class="metric-sub" id="perclosCoverage">Waiting for face tracking</div>
       </div>
 
       <!-- EAR Metric -->
@@ -190,8 +215,8 @@
         </div>
         <div class="stat-divider"></div>
         <div class="stat-box">
-          <span class="stat-num" id="yawnCount">0</span>
-          <span class="stat-label">Slow Blinks</span>
+          <span class="stat-num" id="longClosureCount">0</span>
+          <span class="stat-label">Long Closures</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-box">
@@ -211,12 +236,20 @@
           <span class="session-value" id="fpsValue">—</span>
         </div>
         <div class="session-item">
+          <span class="session-label">Inference time</span>
+          <span class="session-value" id="inferenceValue">—</span>
+        </div>
+        <div class="session-item">
+          <span class="session-label">Active model</span>
+          <span class="session-value" id="activeModelValue">MediaPipe v1.1.0</span>
+        </div>
+        <div class="session-item">
           <span class="session-label">Face Detected</span>
           <span class="session-value" id="faceDetected">No</span>
         </div>
         <div class="session-item">
           <span class="session-label">Threshold (EAR)</span>
-          <span class="session-value">0.25</span>
+          <span class="session-value" id="thresholdValue">0.25</span>
         </div>
       </div>
 
@@ -224,10 +257,10 @@
       <div class="card evaluation-card">
         <div class="evaluation-heading">
           <div>
-            <h3 class="card-title">Performance Evaluation</h3>
-            <p class="evaluation-note">Live operational quality for this session</p>
+            <h3 class="card-title">Session Telemetry</h3>
+            <p class="evaluation-note">Operational measures—not validated accuracy</p>
           </div>
-          <span class="evaluation-score" id="evaluationScore">--</span>
+          <span class="evaluation-score" id="evaluationScore">READY</span>
         </div>
         <div class="evaluation-grid">
           <div class="evaluation-metric">
@@ -269,10 +302,9 @@
 
   <!-- Info Footer -->
   <footer class="footer">
-    <p>🛡️ DrowseGuard uses on-device AI — your camera feed never leaves your device.</p>
+    <p>Camera frames are processed in your browser and are not uploaded. Research prototype only—not for use while driving.</p>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
