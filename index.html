@@ -180,6 +180,27 @@
         <div class="metric-sub" id="earStatus">Waiting for detection...</div>
       </div>
 
+      <!-- Head & Gaze Alignment Metric -->
+      <div class="card metric-card gaze-card">
+        <div class="metric-icon gaze-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7v5l3 2"/>
+            <path d="M9 10h.01M15 10h.01"/>
+            <path d="M9.5 16a3.5 3.5 0 0 0 5 0"/>
+          </svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">Head & Gaze Alignment (70% min)</span>
+          <span class="metric-value" id="gazeAlignmentValue">—</span>
+        </div>
+        <div class="metric-bar-container gaze-bar-container">
+          <div class="threshold-marker-70" title="70% Alert Threshold"></div>
+          <div class="metric-bar" id="gazeAlignmentBar" style="width: 0%"></div>
+        </div>
+        <div class="metric-sub" id="gazeAlignmentStatus">Waiting for detection...</div>
+      </div>
+
       <!-- Export / Logs -->
       <div class="card">
         <div style="display:flex;gap:8px;">
@@ -246,6 +267,10 @@
         <div class="session-item">
           <span class="session-label">Face Detected</span>
           <span class="session-value" id="faceDetected">No</span>
+        </div>
+        <div class="session-item">
+          <span class="session-label">Head Alignment</span>
+          <span class="session-value" id="headAlignmentValue">—</span>
         </div>
         <div class="session-item">
           <span class="session-label">Threshold (EAR)</span>

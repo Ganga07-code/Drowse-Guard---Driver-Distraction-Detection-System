@@ -305,11 +305,20 @@ body {
 .metric-icon svg { width: 18px; height: 18px; }
 .eye-icon { background: rgba(0,212,170,0.12); color: var(--accent); }
 .blink-icon { background: rgba(239,68,68,0.12); color: var(--danger); }
+.gaze-icon { background: rgba(59,130,246,0.15); color: #60a5fa; }
 .metric-label { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
 .metric-value { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1; }
 .metric-bar-container {
   grid-column: 2; height: 4px; background: rgba(255,255,255,0.06);
   border-radius: 999px; overflow: hidden; margin-top: 4px;
+}
+.gaze-bar-container {
+  overflow: visible; position: relative;
+}
+.threshold-marker-70 {
+  position: absolute; left: 70%; top: -3px; bottom: -3px; width: 2px;
+  background: #ef4444; border-radius: 1px; z-index: 2;
+  box-shadow: 0 0 5px rgba(239,68,68,0.8);
 }
 .metric-bar {
   height: 100%; border-radius: 999px;
@@ -317,7 +326,22 @@ body {
   transition: width 0.3s ease;
 }
 .danger-bar { background: linear-gradient(90deg, var(--warn), var(--danger)); }
+.warning-bar { background: linear-gradient(90deg, #f59e0b, #eab308); }
 .metric-sub { grid-column: 2; font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+/* Sound Preview Buttons in Settings */
+.sound-test-group { display: flex; gap: 8px; margin-top: 6px; }
+.btn-test-sound {
+  flex: 1; padding: 8px 10px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+  color: var(--text); font-size: 0.76rem; font-weight: 500;
+  cursor: pointer; transition: all 0.2s ease;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.btn-test-sound:hover {
+  background: rgba(0, 212, 170, 0.12); border-color: var(--accent);
+  color: #fff; transform: translateY(-1px);
+}
 
 /* Stats Row */
 .stats-row { display: flex; align-items: center; justify-content: space-around; padding: 16px 20px; }

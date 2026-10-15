@@ -41,6 +41,10 @@ let blinkTrackingClosed = false;
 let blinkTrackingStart = null;
 let gazeAwayStart = null;
 let gazeAwayAlerted = false;
+let gazeAlignmentBuffer = [];
+let currentHeadAlignment = 100;
+let gazeTurnDirection = 'Frontal';
+const HEAD_ALIGNMENT_THRESHOLD = 70; // 70% minimum visibility restriction from faculty
 let fpsFrames        = 0;
 let fpsLastTime      = performance.now();
 let currentFps       = 0;
@@ -90,6 +94,13 @@ function openSettings() {
       <select id="settingsVoiceLevel">
         <option value="1">1</option><option value="2">2</option><option value="3">3</option>
       </select>
+      <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);">
+        <label style="display:block; margin-bottom: 4px; font-size: 0.78rem; color: var(--muted);">Alert Sound Previews</label>
+        <div class="sound-test-group">
+          <button type="button" class="btn-test-sound" onclick="playAlertSound('closure')">🔊 Eye-Closure Siren</button>
+          <button type="button" class="btn-test-sound" onclick="playAlertSound('gaze')">🔔 Head-Turn Chime</button>
+        </div>
+      </div>
       <div class="settings-actions">
         <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-primary" onclick="saveSettings()">Save</button>
@@ -186,6 +197,19 @@ function startDetection() {
   blinkTrackingStart = null;
   gazeAwayStart = null;
   gazeAwayAlerted = false;
+  gazeAlignmentBuffer = [];
+  currentHeadAlignment = 100;
+  gazeTurnDirection = 'Frontal';
+  if (document.getElementById('gazeAlignmentValue')) document.getElementById('gazeAlignmentValue').textContent = '—';
+  if (document.getElementById('gazeAlignmentBar')) {
+    document.getElementById('gazeAlignmentBar').style.width = '0%';
+    document.getElementById('gazeAlignmentBar').className = 'metric-bar';
+  }
+  if (document.getElementById('gazeAlignmentStatus')) {
+    document.getElementById('gazeAlignmentStatus').textContent = 'Waiting for detection...';
+    document.getElementById('gazeAlignmentStatus').style.color = '';
+  }
+  if (document.getElementById('headAlignmentValue')) document.getElementById('headAlignmentValue').textContent = '—';
   eyeClosedStart = null;
   wasEyeClosed = false;
   currentFps = 0;
@@ -270,6 +294,19 @@ function resetStats() {
   blinkTrackingStart = null;
   gazeAwayStart = null;
   gazeAwayAlerted = false;
+  gazeAlignmentBuffer = [];
+  currentHeadAlignment = 100;
+  gazeTurnDirection = 'Frontal';
+  if (document.getElementById('gazeAlignmentValue')) document.getElementById('gazeAlignmentValue').textContent = '—';
+  if (document.getElementById('gazeAlignmentBar')) {
+    document.getElementById('gazeAlignmentBar').style.width = '0%';
+    document.getElementById('gazeAlignmentBar').className = 'metric-bar';
+  }
+  if (document.getElementById('gazeAlignmentStatus')) {
+    document.getElementById('gazeAlignmentStatus').textContent = 'Waiting for detection...';
+    document.getElementById('gazeAlignmentStatus').style.color = '';
+  }
+  if (document.getElementById('headAlignmentValue')) document.getElementById('headAlignmentValue').textContent = '—';
   updateGauge(0);
   resetEvaluation();
   document.getElementById('blinkCount').textContent = '0';
@@ -363,6 +400,21 @@ async function detectRealFrame() {
       blinkTrackingStart = null;
       gazeAwayStart = null;
       gazeAwayAlerted = false;
+      gazeAlignmentBuffer = [];
+      if (document.getElementById('gazeAlignmentStatus')) {
+        document.getElementById('gazeAlignmentStatus').textContent = 'Face not detected';
+        document.getElementById('gazeAlignmentStatus').style.color = '';
+      }
+      if (document.getElementById('gazeAlignmentValue')) {
+        document.getElementById('gazeAlignmentValue').textContent = '—';
+      }
+      if (document.getElementById('gazeAlignmentBar')) {
+        document.getElementById('gazeAlignmentBar').style.width = '0%';
+        document.getElementById('gazeAlignmentBar').className = 'metric-bar';
+      }
+      if (document.getElementById('headAlignmentValue')) {
+        document.getElementById('headAlignmentValue').textContent = 'No face';
+      }
     }
 
     lastInferenceMs = performance.now() - inferenceStart;
@@ -468,57 +520,157 @@ function updateBlinkCount(ear) {
 }
 
 function updateGazeAttention(landmarks, ear) {
-  if (ear < sens.ear) {
-    gazeAwayStart = null;
-    gazeAwayAlerted = false;
-    return;
-  }
+  const requiredIndexes = [1, 33, 61, 133, 234, 263, 291, 362, 454];
+  if (landmarks.length <= Math.max(...requiredIndexes)) return;
 
+  // ── 1. Head & Facial Feature Visibility Analysis ──────
+  // When looking straight: nose, both eyes, lips, and both cheeks/ears are visible and symmetric.
+  // When turned left/right: camera sees mostly one side cheek; nose-cheek, eye, and lip spans foreshorten.
+  const nose = landmarks[1];
+  const leftCheek = landmarks[454];   // User's left cheek outer edge
+  const rightCheek = landmarks[234];  // User's right cheek outer edge
+  const distNoseToLeftCheek = dist(nose, leftCheek);
+  const distNoseToRightCheek = dist(nose, rightCheek);
+  const minCheek = Math.min(distNoseToLeftCheek, distNoseToRightCheek);
+  const maxCheek = Math.max(distNoseToLeftCheek, distNoseToRightCheek);
+  const sCheek = maxCheek > 0 ? (minCheek / maxCheek) : 0;
+
+  // 2. Eye span distances from nose to outer eye corners
+  const leftEyeOuter = landmarks[33];
+  const rightEyeOuter = landmarks[263];
+  const distNoseToLeftEye = dist(nose, leftEyeOuter);
+  const distNoseToRightEye = dist(nose, rightEyeOuter);
+  const minEye = Math.min(distNoseToLeftEye, distNoseToRightEye);
+  const maxEye = Math.max(distNoseToLeftEye, distNoseToRightEye);
+  const sEye = maxEye > 0 ? (minEye / maxEye) : 0;
+
+  // 3. Mouth span distances from nose to mouth corners
+  const leftMouth = landmarks[61];
+  const rightMouth = landmarks[291];
+  const distNoseToLeftMouth = dist(nose, leftMouth);
+  const distNoseToRightMouth = dist(nose, rightMouth);
+  const minMouth = Math.min(distNoseToLeftMouth, distNoseToRightMouth);
+  const maxMouth = Math.max(distNoseToLeftMouth, distNoseToRightMouth);
+  const sMouth = maxMouth > 0 ? (minMouth / maxMouth) : 0;
+
+  // 4. Eye width foreshortening (apparent width of each eye)
+  const leftEyeInner = landmarks[133];
+  const rightEyeInner = landmarks[362];
+  const widthLeftEye = dist(leftEyeOuter, leftEyeInner);
+  const widthRightEye = dist(rightEyeInner, rightEyeOuter);
+  const minEyeWidth = Math.min(widthLeftEye, widthRightEye);
+  const maxEyeWidth = Math.max(widthLeftEye, widthRightEye);
+  const sEyeWidth = maxEyeWidth > 0 ? (minEyeWidth / maxEyeWidth) : 0;
+
+  // 5. Composite facial symmetry (0.0 to 1.0)
+  const rawSymmetry = 0.45 * sCheek + 0.25 * sEye + 0.15 * sMouth + 0.15 * sEyeWidth;
+
+  // Scale raw symmetry: 0.85+ maps to 100% frontal face visibility
+  let visibilityPct = Math.min(100, Math.round((rawSymmetry / 0.85) * 100));
+
+  // 6. Iris Gaze check (when eyes are open)
+  let lookingAwayIris = false;
   const irisIndexes = [468, 469, 470, 471, 472, 473, 474, 475, 476, 477];
-  if (landmarks.length <= Math.max(...irisIndexes)) return;
+  if (ear >= sens.ear && landmarks.length > Math.max(...irisIndexes)) {
+    const eyeRegions = [
+      { contour: [33, 160, 158, 133, 153, 144], iris: [468, 469, 470, 471, 472] },
+      { contour: [362, 385, 387, 263, 373, 380], iris: [473, 474, 475, 476, 477] }
+    ];
+    const horizontalRatios = [];
+    const verticalRatios = [];
 
-  const eyeRegions = [
-    { contour: [33, 160, 158, 133, 153, 144], iris: [468, 469, 470, 471, 472] },
-    { contour: [362, 385, 387, 263, 373, 380], iris: [473, 474, 475, 476, 477] }
-  ];
-  const horizontalRatios = [];
-  const verticalRatios = [];
+    for (const eye of eyeRegions) {
+      const contour = eye.contour.map(idx => landmarks[idx]);
+      const iris = eye.iris.map(idx => landmarks[idx]);
+      const irisX = iris.reduce((sum, pt) => sum + pt.x, 0) / iris.length;
+      const irisY = iris.reduce((sum, pt) => sum + pt.y, 0) / iris.length;
+      const minX = Math.min(...contour.map(pt => pt.x));
+      const maxX = Math.max(...contour.map(pt => pt.x));
+      const minY = Math.min(...contour.map(pt => pt.y));
+      const maxY = Math.max(...contour.map(pt => pt.y));
 
-  for (const eye of eyeRegions) {
-    const contour = eye.contour.map(index => landmarks[index]);
-    const iris = eye.iris.map(index => landmarks[index]);
-    const irisX = iris.reduce((sum, point) => sum + point.x, 0) / iris.length;
-    const irisY = iris.reduce((sum, point) => sum + point.y, 0) / iris.length;
-    const minX = Math.min(...contour.map(point => point.x));
-    const maxX = Math.max(...contour.map(point => point.x));
-    const minY = Math.min(...contour.map(point => point.y));
-    const maxY = Math.max(...contour.map(point => point.y));
+      if (maxX > minX && maxY > minY) {
+        horizontalRatios.push((irisX - minX) / (maxX - minX));
+        verticalRatios.push((irisY - minY) / (maxY - minY));
+      }
+    }
 
-    if (maxX > minX && maxY > minY) {
-      horizontalRatios.push((irisX - minX) / (maxX - minX));
-      verticalRatios.push((irisY - minY) / (maxY - minY));
+    if (horizontalRatios.length === 2 && verticalRatios.length === 2) {
+      const horizontal = (horizontalRatios[0] + horizontalRatios[1]) / 2;
+      const vertical = (verticalRatios[0] + verticalRatios[1]) / 2;
+      lookingAwayIris = horizontal < 0.22 || horizontal > 0.78 || vertical < 0.15 || vertical > 0.85;
+      if (lookingAwayIris) {
+        // Eyes looking away brings overall alignment below 70% threshold
+        visibilityPct = Math.min(visibilityPct, 64);
+      }
     }
   }
 
-  if (horizontalRatios.length !== 2 || verticalRatios.length !== 2) return;
-  const horizontal = horizontalRatios.reduce((sum, ratio) => sum + ratio, 0) / 2;
-  const vertical = verticalRatios.reduce((sum, ratio) => sum + ratio, 0) / 2;
-  const lookingAway = horizontal < 0.22 || horizontal > 0.78 || vertical < 0.15 || vertical > 0.85;
+  // 7. Smooth the score across recent frames
+  gazeAlignmentBuffer.push(visibilityPct);
+  if (gazeAlignmentBuffer.length > 5) gazeAlignmentBuffer.shift();
+  const smoothVisibility = Math.round(gazeAlignmentBuffer.reduce((a, b) => a + b, 0) / gazeAlignmentBuffer.length);
+  currentHeadAlignment = smoothVisibility;
+
+  // 8. Classify head posture & direction
+  if (currentHeadAlignment >= HEAD_ALIGNMENT_THRESHOLD) {
+    gazeTurnDirection = 'Frontal (Full Face)';
+  } else if (distNoseToLeftCheek < distNoseToRightCheek) {
+    gazeTurnDirection = 'Turned Left (Side Cheek Visible)';
+  } else if (distNoseToRightCheek < distNoseToLeftCheek) {
+    gazeTurnDirection = 'Turned Right (Side Cheek Visible)';
+  } else if (lookingAwayIris) {
+    gazeTurnDirection = 'Eyes Looking Away';
+  } else {
+    gazeTurnDirection = 'Turned Away (Side Cheek Visible)';
+  }
+
+  // 9. Update UI Metrics
+  const gazeValElem = document.getElementById('gazeAlignmentValue');
+  const gazeBarElem = document.getElementById('gazeAlignmentBar');
+  const gazeStatusElem = document.getElementById('gazeAlignmentStatus');
+  const headValElem = document.getElementById('headAlignmentValue');
+
+  if (gazeValElem) gazeValElem.textContent = `${currentHeadAlignment}%`;
+  if (gazeBarElem) {
+    gazeBarElem.style.width = `${Math.min(100, currentHeadAlignment)}%`;
+    gazeBarElem.className = currentHeadAlignment < HEAD_ALIGNMENT_THRESHOLD 
+      ? 'metric-bar danger-bar' 
+      : 'metric-bar';
+  }
+
+  if (headValElem) {
+    headValElem.textContent = `${currentHeadAlignment}% · ${gazeTurnDirection.split(' ')[0]}`;
+  }
+
+  const isAlertCondition = currentHeadAlignment < HEAD_ALIGNMENT_THRESHOLD;
   const now = Date.now();
 
-  if (!lookingAway) {
+  // 10. 70% Restriction Logic: >= 70% is NOT an alert, < 70% IS an alert
+  if (!isAlertCondition) {
+    if (gazeStatusElem) {
+      gazeStatusElem.textContent = `✓ Optimal · Full Face Visible (${currentHeadAlignment}% ≥ 70%)`;
+      gazeStatusElem.style.color = 'var(--accent)';
+    }
     gazeAwayStart = null;
     gazeAwayAlerted = false;
     return;
+  }
+
+  // Below 70% threshold: Alert condition
+  if (gazeStatusElem) {
+    gazeStatusElem.textContent = `⚠️ Alert · ${gazeTurnDirection} (${currentHeadAlignment}% < 70%)`;
+    gazeStatusElem.style.color = 'var(--danger)';
   }
 
   if (gazeAwayStart === null) gazeAwayStart = now;
   if (!gazeAwayAlerted && now - gazeAwayStart >= GAZE_AWAY_ALERT_MS) {
     gazeAwayAlerted = true;
     triggerAlert({
-      title: 'LOOKING AWAY',
-      text: 'Your eyes appear to be away from the screen. Please look back at the screen.',
-      voiceText: 'Please look back at the screen.'
+      title: 'HEAD TURNED / NOT FACING CAMERA',
+      text: `Head alignment fell to ${currentHeadAlignment}% (below the 70% threshold). ${gazeTurnDirection}. Please look straight into the camera.`,
+      voiceText: 'Please look straight into the camera.',
+      soundType: 'gaze'
     });
   }
 }
@@ -746,6 +898,51 @@ function drawMediaPipeMesh(landmarks) {
   });
   drawContour([33, 160, 158, 133, 153, 144].map(index => points[index]), isDrowsy);
   drawContour([362, 385, 387, 263, 373, 380].map(index => points[index]), isDrowsy);
+
+  // Draw Head Alignment HUD Badge on camera overlay
+  drawHeadAlignmentHUD();
+}
+
+function drawHeadAlignmentHUD() {
+  ctx.save();
+  // Un-mirror horizontally because overlay-canvas is mirrored with transform: scaleX(-1) in CSS
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+
+  const isAlignmentOk = currentHeadAlignment >= HEAD_ALIGNMENT_THRESHOLD;
+  const badgeText = isAlignmentOk 
+    ? `Head Alignment: ${currentHeadAlignment}% (≥70%) · Frontal` 
+    : `⚠️ Head Alignment: ${currentHeadAlignment}% (<70%) · ${gazeTurnDirection}`;
+
+  ctx.font = '600 12px Inter, sans-serif';
+  const textWidth = ctx.measureText(badgeText).width;
+  const badgeW = textWidth + 26;
+  const badgeH = 26;
+  const badgeX = 14;
+  const badgeY = 14;
+
+  ctx.fillStyle = isAlignmentOk ? 'rgba(6, 13, 24, 0.85)' : 'rgba(239, 68, 68, 0.9)';
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+  } else {
+    ctx.rect(badgeX, badgeY, badgeW, badgeH);
+  }
+  ctx.fill();
+  ctx.strokeStyle = isAlignmentOk ? 'rgba(0, 212, 170, 0.5)' : 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Status dot
+  ctx.fillStyle = isAlignmentOk ? '#00d4aa' : '#ffffff';
+  ctx.beginPath();
+  ctx.arc(badgeX + 12, badgeY + 13, 4, 0, 2 * Math.PI);
+  ctx.fill();
+
+  // Text
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(badgeText, badgeX + 22, badgeY + 17);
+  ctx.restore();
 }
 
 function drawContour(points, danger) {
@@ -778,6 +975,22 @@ function runSimulatedLoop() {
     document.getElementById('faceDetected').textContent = 'Sim ✓';
     recordEvaluationSample(smoothEAR, true);
 
+    // Simulated Head Alignment (mostly 88-96% frontal, occasionally dips)
+    const simAlignment = Math.round(92 + 6 * Math.cos(t * 0.5));
+    currentHeadAlignment = simAlignment;
+    if (document.getElementById('gazeAlignmentValue')) document.getElementById('gazeAlignmentValue').textContent = `${simAlignment}%`;
+    if (document.getElementById('gazeAlignmentBar')) {
+      document.getElementById('gazeAlignmentBar').style.width = `${simAlignment}%`;
+      document.getElementById('gazeAlignmentBar').className = 'metric-bar';
+    }
+    if (document.getElementById('gazeAlignmentStatus')) {
+      document.getElementById('gazeAlignmentStatus').textContent = `✓ Optimal · Full Face Visible (${simAlignment}% ≥ 70%)`;
+      document.getElementById('gazeAlignmentStatus').style.color = 'var(--accent)';
+    }
+    if (document.getElementById('headAlignmentValue')) {
+      document.getElementById('headAlignmentValue').textContent = `Frontal (${simAlignment}%)`;
+    }
+
     const closed = smoothEAR < sens.ear;
     if (closed) {
       drowsinessScore = Math.min(100, drowsinessScore + 2);
@@ -788,7 +1001,7 @@ function runSimulatedLoop() {
       closedFrames = 0;
       document.getElementById('earStatus').textContent = '✓ Eyes open (demo)';
     }
-    if (closedFrames >= sens.frames) triggerAlert();
+    if (closedFrames >= sens.frames) triggerAlert({ soundType: 'closure' });
 
     updateGauge(drowsinessScore);
     applyDrowsyState(drowsinessScore);
@@ -828,7 +1041,7 @@ function decayDrowsiness() {
   updateGauge(drowsinessScore);
 }
 
-function triggerAlert({ title = 'PROLONGED EYE CLOSURE', text = 'The configured eye-closure rule was reached. This research prototype cannot diagnose drowsiness.', voiceText = null } = {}) {
+function triggerAlert({ title = 'PROLONGED EYE CLOSURE', text = 'The configured eye-closure rule was reached. This research prototype cannot diagnose drowsiness.', voiceText = null, soundType = 'closure' } = {}) {
   const now = Date.now();
   if (now - lastAlertTime < 8000) return;   // throttle alerts
   lastAlertTime = now;
@@ -846,10 +1059,11 @@ function triggerAlert({ title = 'PROLONGED EYE CLOSURE', text = 'The configured 
     closureDurationMs: eyeClosedStart ? Date.now() - eyeClosedStart : 0,
     perclos60s: document.getElementById('perclosValue').textContent,
     earThreshold: sens.ear,
-    alertType: title
+    alertType: title,
+    headAlignment: currentHeadAlignment
   });
 
-  playAlertSound();
+  playAlertSound(soundType);
   document.getElementById('alertOverlay').classList.remove('hidden');
   closedFrames = 0;
   if (voiceText) {
@@ -865,21 +1079,57 @@ function dismissAlert() {
   stopVoiceEscalation();
 }
 
-function playAlertSound() {
+function playAlertSound(type = 'closure') {
   try {
     const ctx2 = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = ctx2.createOscillator();
-    const gain = ctx2.createGain();
-    osc.connect(gain); gain.connect(ctx2.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(440, ctx2.currentTime);
-    osc.frequency.linearRampToValueAtTime(880, ctx2.currentTime + 0.3);
-    gain.gain.setValueAtTime(0.4, ctx2.currentTime);
-    gain.gain.linearRampToValueAtTime(0, ctx2.currentTime + 0.8);
-    osc.start(ctx2.currentTime);
-    osc.stop(ctx2.currentTime + 0.8);
-  } catch(e) {}
+    const now = ctx2.currentTime;
+
+    if (type === 'gaze') {
+      // 🔔 Distinct Dual-Tone Attention Chime for Head Turn / Gaze (Lane assist / distraction chime)
+      // Tone 1: Crisp high tone
+      const osc1 = ctx2.createOscillator();
+      const gain1 = ctx2.createGain();
+      osc1.connect(gain1);
+      gain1.connect(ctx2.destination);
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(880, now); // A5
+      osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.18); // E5
+      gain1.gain.setValueAtTime(0.35, now);
+      gain1.gain.linearRampToValueAtTime(0.01, now + 0.22);
+      osc1.start(now);
+      osc1.stop(now + 0.22);
+
+      // Tone 2: Higher bright chime immediately following
+      const osc2 = ctx2.createOscillator();
+      const gain2 = ctx2.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx2.destination);
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(1174.66, now + 0.16); // D6
+      osc2.frequency.exponentialRampToValueAtTime(880, now + 0.45);
+      gain2.gain.setValueAtTime(0.35, now + 0.16);
+      gain2.gain.linearRampToValueAtTime(0.01, now + 0.50);
+      osc2.start(now + 0.16);
+      osc2.stop(now + 0.50);
+    } else {
+      // 🚨 Urgent Rising Siren for Eye Closure / Drowsiness
+      const osc  = ctx2.createOscillator();
+      const gain = ctx2.createGain();
+      osc.connect(gain);
+      gain.connect(ctx2.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.8);
+      osc.start(now);
+      osc.stop(now + 0.8);
+    }
+  } catch(e) {
+    console.warn('AudioContext alert failed:', e);
+  }
 }
+window.playAlertSound = playAlertSound;
 
 function updateStatCards(ear, closure, earSt, closeSt) {
   if (earSt)   document.getElementById('earStatus').textContent    = earSt;

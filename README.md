@@ -1,14 +1,54 @@
-# DrowseGuard
+<div align="center">
 
-## Introduction
+# 😴 DrowseGuard
 
-DrowseGuard is a browser-based research prototype that uses MediaPipe Face Landmarker to monitor eye closure and gaze direction through a webcam. It displays blink and long-closure counts, EAR, rolling 60-second PERCLOS, tracking coverage, inference time, and alerts for prolonged eye closure, looking away, or losing face tracking.
+### A browser-based drowsiness-monitoring research prototype
 
-Camera frames are processed in the browser and are not uploaded by the app. MediaPipe and its model asset are fetched from external CDNs, so an internet connection is required.
+Monitor eye closure and gaze cues with your webcam, with live session metrics and alerts.
 
-> Research prototype only. DrowseGuard is not a certified safety system, cannot diagnose drowsiness, and must not be used while driving or to make driving decisions.
+</div>
 
-## Project Structure
+> [!WARNING]
+> **Research prototype only.** DrowseGuard is not a certified safety system and cannot diagnose drowsiness. **Never use it while driving or to make driving decisions.** Its thresholds and alert timings are heuristics, not clinically or experimentally validated values.
+
+## ✨ What it does
+
+DrowseGuard uses **MediaPipe Face Landmarker** in your browser to analyze facial landmarks and display:
+
+- 👁️ Eye Aspect Ratio (EAR), blink counts, and long eye closures
+- 📊 Rolling 60-second PERCLOS and face-tracking coverage
+- ⚡ Detection FPS and inference time
+- 🚨 Alerts for prolonged eye closure, sustained gaze away, and loss of face tracking
+- 🧭 Head and feature alignment checks using facial landmarks, with a 70% visibility threshold
+- 🔔 Distinct previewable alert tones for eye closure and looking away
+- 📁 CSV export of session samples and alerts
+
+Sensitivity and the EAR threshold can be adjusted in the app settings. Session logs are held in memory and cleared when the page reloads.
+
+## 🔒 Privacy & requirements
+
+- Camera access is requested only after you start detection.
+- Camera frames are processed in the browser and are not uploaded by the app.
+- MediaPipe and its model asset are loaded from external CDNs, so an internet connection is required.
+- Session telemetry describes app operation, not detection accuracy. Accuracy requires independently labeled test sessions.
+
+## 🚀 Run locally
+
+No package installation or build step is required. From the project root, start a local static server:
+
+```powershell
+python -m http.server 8000
+```
+
+Then open **http://localhost:8000**, allow camera access, and select **Start Detection**. A local server is preferred to opening `index.html` directly because camera access generally requires `localhost` or HTTPS. Stop the server with `Ctrl+C`.
+
+Check JavaScript syntax with Node.js:
+
+```powershell
+node --check app.js
+```
+
+## 🗂️ Project structure
 
 ```text
 Drowse-Guard-main/
@@ -23,51 +63,24 @@ Drowse-Guard-main/
 `-- Drowse-Guard-main/     # Duplicate project copy; not required to run the root app
 ```
 
-## Features
+### Main files
 
-- MediaPipe Face Landmarker is the only active face-landmark model.
-- Eye Aspect Ratio (EAR) is used for eye-closure detection.
-- Blink counts and long eye closures are tracked separately.
-- Alerts cover prolonged eye closure, sustained gaze away from the screen, and face loss.
-- Rolling 60-second PERCLOS, face-tracking coverage, detection FPS, and inference time are shown.
-- Sensitivity and EAR threshold can be adjusted in the app settings.
-- Session samples and alerts can be exported as CSV; logs are held in memory and cleared when the page reloads.
-- The webcam is requested only after the user starts detection.
+| File | Purpose |
+| --- | --- |
+| `index.html` | Dashboard, controls, metric displays, and alert overlay |
+| `style.css` | Dashboard layout, appearance, and responsive styles |
+| `app.js` | MediaPipe loading, webcam handling, landmark processing, metrics, alerts, and CSV export |
+| `vercel.json` | Clean URL and trailing-slash configuration for static deployment on Vercel |
+| `.github/workflows/deploy-pages.yml` | GitHub Actions workflow for deployment |
 
-Thresholds and alert durations are heuristics, not clinically or experimentally validated values. Session telemetry describes operation, not detection accuracy. Accuracy measurements require independently labeled test sessions.
+The root `index.html` loads the root `app.js` and `style.css`. The nested `Drowse-Guard-main/` directory is a duplicate project copy and is not needed to run the root app.
 
-## Purpose of Each File
+## 🔭 Future work
 
-- `index.html` - Defines the dashboard, controls, metric displays, alert overlay, and loads the stylesheet and app script.
-- `style.css` - Defines the dashboard appearance, layout, and responsive styles.
-- `app.js` - Loads MediaPipe, requests webcam access, processes landmarks, calculates EAR/PERCLOS and blink metrics, evaluates gaze and face tracking, displays alerts, and exports session logs.
-- `README.md` - Documents the project, features, file roles, setup, and future work.
-- `vercel.json` - Configures clean URLs and trailing-slash behavior for static deployment on Vercel.
-- `.github/workflows/deploy-pages.yml` - GitHub Actions workflow for deployment.
-- `Drowse-Guard-main/` - A duplicate project copy in the workspace. The root `index.html` uses the root `app.js` and `style.css`; this nested copy is not needed for local runs.
-
-## Commands to Run
-
-No package installation or build step is required. Open a terminal in the project root and start a local static server:
-
-```powershell
-python -m http.server 8000
-```
-
-Open `http://localhost:8000` in a browser, allow camera access, and select **Start Detection**. Use `Ctrl+C` in the terminal to stop the server. A local server is preferred over opening `index.html` directly because browser camera access generally requires `localhost` or HTTPS.
-
-To check the JavaScript syntax with Node.js:
-
-```powershell
-node --check app.js
-```
-
-## Future Scope
-
-- Calibrate gaze and eye-closure thresholds for each user and camera position, then evaluate whether calibration improves reliability.
-- Evaluate blink, gaze-away, and eye-closure detection on consented, labeled data across varied lighting, camera angles, and eyewear.
-- Report precision, recall, false-alert rate, missed-event rate, and detection delay instead of treating live telemetry as accuracy.
+- Calibrate gaze and eye-closure thresholds for individual users and camera positions, then evaluate whether calibration improves reliability.
+- Evaluate detection on consented, labeled data across varied lighting, camera angles, and eyewear.
+- Report precision, recall, false-alert rate, missed-event rate, and detection delay rather than treating live telemetry as accuracy.
 - Add focused automated tests for landmark processing, alert timing, and reset behavior.
-- Consider comparing additional models only when there is suitable labeled data and a clearly defined evaluation protocol.
+- Compare additional models only when suitable labeled data and a clearly defined evaluation protocol are available.
 
 Any data collection involving people should follow applicable consent and ethics requirements, minimize identifiable data, and document retention and deletion practices. Do not collect data on public roads or by inducing sleep deprivation.
