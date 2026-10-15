@@ -8,6 +8,8 @@ Monitor eye closure and gaze cues with your webcam, with live session metrics an
 
 </div>
 
+🌐 **Live demo:** [Open DrowseGuard](https://drowse-guard-app.vercel.app/)
+
 > [!WARNING]
 > **Research prototype only.** DrowseGuard is not a certified safety system and cannot diagnose drowsiness. **Never use it while driving or to make driving decisions.** Its thresholds and alert timings are heuristics, not clinically or experimentally validated values.
 
