@@ -23,6 +23,9 @@ const SENSITIVITY = {
 // ── State ─────────────────────────────────────────────
 let isRunning        = false;
 let animFrameId      = null;
+let videoFrameCallbackId = null;
+let lastVideoTime    = -1;
+let lastSparklineUpdate = 0;
 let stream           = null;
 let sessionStart     = null;
 let sessionTimer     = null;
@@ -60,14 +63,10 @@ let lastScoreUpdate  = 0;
 let evaluation = { frames: 0, faceFrames: 0, earTotal: 0 };
 let logs             = [];
 let earHistory       = [];
-let voiceSettings    = { enabled: false, volume: 0.8, level: 3 };
-let voiceTimer       = null;
-let currentVoiceLevel = 0;
-const voiceMessages   = {
-  1: 'Please stay alert.',
-  2: 'Drowsiness detected. Please take a break.',
-  3: 'Warning. Pull over safely and rest.'
-};
+let voiceSettings    = { enabled: true, volume: 0.8 };
+let emojiStageBounds = null;
+let pointerFrameId   = null;
+let lastPointer      = null;
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
 
@@ -90,17 +89,6 @@ function openSettings() {
       <label><input id="settingsVoiceEnabled" type="checkbox" ${voiceSettings.enabled ? 'checked' : ''}> Voice alerts</label>
       <label for="settingsVoiceVolume">Voice volume</label>
       <input id="settingsVoiceVolume" type="range" min="0" max="1" step="0.1" value="${voiceSettings.volume}">
-      <label for="settingsVoiceLevel">Voice escalation level</label>
-      <select id="settingsVoiceLevel">
-        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-      </select>
-      <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);">
-        <label style="display:block; margin-bottom: 4px; font-size: 0.78rem; color: var(--muted);">Alert Sound Previews</label>
-        <div class="sound-test-group">
-          <button type="button" class="btn-test-sound" onclick="playAlertSound('closure')">🔊 Eye-Closure Siren</button>
-          <button type="button" class="btn-test-sound" onclick="playAlertSound('gaze')">🔔 Head-Turn Chime</button>
-        </div>
-      </div>
       <div class="settings-actions">
         <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-primary" onclick="saveSettings()">Save</button>
@@ -108,7 +96,6 @@ function openSettings() {
     </div>`;
   document.body.appendChild(modal);
   document.getElementById('settingsSensitivity').value = Object.keys(SENSITIVITY).find(key => SENSITIVITY[key].label === sens.label) || '2';
-  document.getElementById('settingsVoiceLevel').value = voiceSettings.level;
 }
 
 function recordEvaluationSample(ear, faceDetected) {
@@ -117,7 +104,6 @@ function recordEvaluationSample(ear, faceDetected) {
     evaluation.faceFrames++;
     evaluation.earTotal += ear;
   }
-  updateEvaluation();
 }
 
 function updateEvaluation() {
@@ -190,6 +176,7 @@ function startDetection() {
   fpsLastTime = performance.now();
   lastScoreUpdate = performance.now();
   lastLoggedAt = 0;
+  lastVideoTime = -1;
   perclosSamples = [];
   earBuffer = [];
   closedFrames = 0;
@@ -254,11 +241,15 @@ function startDetection() {
 function stopDetection() {
   detectionRunId++;
   isRunning = false;
+  const video = document.getElementById('video');
+  if (videoFrameCallbackId !== null && typeof video?.cancelVideoFrameCallback === 'function') {
+    video.cancelVideoFrameCallback(videoFrameCallbackId);
+  }
+  videoFrameCallbackId = null;
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
     stream = null;
   }
-  const video = document.getElementById('video');
   if (video) video.srcObject = null;
   if (mediaPipeLandmarker) {
     try { mediaPipeLandmarker.close(); } catch (error) { console.warn('Could not close MediaPipe task:', error); }
@@ -367,6 +358,7 @@ async function startRealDetection(runId) {
     hideLoading();
     setCameraBadge(true);
     setStatus('Detection active', true);
+    lastVideoTime = -1;
     detectRealFrame();
   } catch (error) {
     console.error('Face detection could not start:', error);
@@ -381,6 +373,11 @@ async function startRealDetection(runId) {
 async function detectRealFrame() {
   if (!isRunning || !modelsLoaded) return;
   const video = document.getElementById('video');
+  if (video.currentTime === lastVideoTime) {
+    scheduleDetectionFrame(video);
+    return;
+  }
+  lastVideoTime = video.currentTime;
   const inferenceStart = performance.now();
   try {
     let ear = null;
@@ -430,7 +427,22 @@ async function detectRealFrame() {
     console.warn('Detection frame failed:', error);
   }
   calcFPS();
-  if (isRunning) animFrameId = requestAnimationFrame(detectRealFrame);
+  scheduleDetectionFrame(video);
+}
+
+function scheduleDetectionFrame(video) {
+  if (!isRunning) return;
+  if (typeof video.requestVideoFrameCallback === 'function') {
+    videoFrameCallbackId = video.requestVideoFrameCallback(() => {
+      videoFrameCallbackId = null;
+      detectRealFrame();
+    });
+  } else {
+    animFrameId = requestAnimationFrame(() => {
+      animFrameId = null;
+      detectRealFrame();
+    });
+  }
 }
 
 function processDetectionSample(ear, faceDetected) {
@@ -453,7 +465,14 @@ function processDetectionSample(ear, faceDetected) {
     updateSparkline(smoothEAR);
     const closureMs = updateClosureMetrics(closed);
     closedFrames = closed ? closedFrames + 1 : 0;
-    if (closed && closureMs >= sens.alertMs) triggerAlert();
+    if (closed && closureMs >= sens.alertMs) {
+      triggerAlert({
+        message: 'Please open your eyes.',
+        voiceText: 'Please open your eyes.',
+        alertType: 'closure',
+        soundType: 'closure'
+      });
+    }
     const elapsedSeconds = Math.min((performance.now() - lastScoreUpdate) / 1000, 0.25);
     drowsinessScore = closed
       ? Math.min(100, drowsinessScore + elapsedSeconds * 12)
@@ -465,9 +484,10 @@ function processDetectionSample(ear, faceDetected) {
     if (missingFaceMs >= NO_FACE_ALERT_MS && !faceLossAlerted) {
       faceLossAlerted = true;
       triggerAlert({
-        title: 'FACE NOT DETECTED',
-        text: 'You are no longer looking at the camera. Please face the webcam to resume tracking.',
-        voiceText: 'Please look at the camera.'
+        message: 'Please face the camera to resume tracking.',
+        voiceText: 'Please face the camera.',
+        soundType: 'gaze',
+        alertType: 'noface'
       });
     }
     earBuffer = [];
@@ -667,10 +687,10 @@ function updateGazeAttention(landmarks, ear) {
   if (!gazeAwayAlerted && now - gazeAwayStart >= GAZE_AWAY_ALERT_MS) {
     gazeAwayAlerted = true;
     triggerAlert({
-      title: 'HEAD TURNED / NOT FACING CAMERA',
-      text: `Head alignment fell to ${currentHeadAlignment}% (below the 70% threshold). ${gazeTurnDirection}. Please look straight into the camera.`,
-      voiceText: 'Please look straight into the camera.',
-      soundType: 'gaze'
+      message: 'Please look straight ahead.',
+      voiceText: 'Please look straight ahead.',
+      soundType: 'gaze',
+      alertType: 'gaze'
     });
   }
 }
@@ -755,8 +775,7 @@ function saveSettings() {
   // voice settings
   const vEnabled = document.getElementById('settingsVoiceEnabled').checked;
   const vVolume = parseFloat(document.getElementById('settingsVoiceVolume').value || 0.8);
-  const vLevel  = parseInt(document.getElementById('settingsVoiceLevel').value || 3, 10);
-  voiceSettings = { enabled: vEnabled, volume: vVolume, level: vLevel };
+  voiceSettings = { enabled: vEnabled, volume: vVolume };
   localStorage.setItem('drowseguard_sens', JSON.stringify({ val, ear: sens.ear }));
   document.getElementById('sensitivitySlider').value = val;
   document.getElementById('sensitivityVal').textContent = sens.label;
@@ -777,12 +796,17 @@ function loadSettings() {
       document.getElementById('thresholdValue').textContent = sens.ear.toFixed(2);
     }
     const vs = JSON.parse(localStorage.getItem('drowseguard_voice'));
-    if (vs) voiceSettings = Object.assign(voiceSettings, vs);
+    if (vs) {
+      voiceSettings = {
+        enabled: typeof vs.enabled === 'boolean' ? vs.enabled : voiceSettings.enabled,
+        volume: Number.isFinite(Number(vs.volume)) ? Number(vs.volume) : voiceSettings.volume
+      };
+    }
   } catch (e) { /* ignore */ }
 }
 
 // -------------------------
-// Voice escalation
+// Spoken alert prompts
 // -------------------------
 function speak(text, opts = {}) {
   if (!window.speechSynthesis) return;
@@ -795,28 +819,8 @@ function speak(text, opts = {}) {
   } catch (e) { /* ignore */ }
 }
 
-function startVoiceEscalation() {
-  if (!voiceSettings.enabled) return;
-  stopVoiceEscalation();
-  currentVoiceLevel = 1;
-  speak(voiceMessages[currentVoiceLevel], { volume: voiceSettings.volume });
-  voiceTimer = setTimeout(() => escalateVoice(), 4000);
-}
-
-function escalateVoice() {
-  if (!voiceSettings.enabled) return;
-  currentVoiceLevel = Math.min(voiceSettings.level, currentVoiceLevel + 1);
-  const msg = voiceMessages[currentVoiceLevel] || voiceMessages[voiceSettings.level];
-  // increase urgency via rate/pitch for higher levels
-  const opts = { volume: voiceSettings.volume, rate: 1 + (currentVoiceLevel - 1) * 0.12, pitch: 1 + (currentVoiceLevel - 1) * 0.08 };
-  speak(msg, opts);
-  voiceTimer = setTimeout(() => escalateVoice(), 5000);
-}
-
-function stopVoiceEscalation() {
-  if (voiceTimer) { clearTimeout(voiceTimer); voiceTimer = null; }
+function stopVoice() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
-  currentVoiceLevel = 0;
 }
 
 // -------------------------
@@ -825,9 +829,12 @@ function stopVoiceEscalation() {
 function updateSparkline(ear) {
   const c = document.getElementById('earSpark');
   if (!c) return;
-  const ctx2 = c.getContext('2d');
   earHistory.push(ear);
   if (earHistory.length > 100) earHistory.shift();
+  const now = performance.now();
+  if (now - lastSparklineUpdate < 100) return;
+  lastSparklineUpdate = now;
+  const ctx2 = c.getContext('2d');
   const w = c.width, h = c.height;
   ctx2.clearRect(0,0,w,h);
   // background
@@ -880,24 +887,42 @@ function drawFaceMesh(landmarks, box) {
 }
 
 function drawMediaPipeMesh(landmarks) {
-  const points = landmarks.map(point => ({ x: point.x * canvas.width, y: point.y * canvas.height }));
-  const xs = points.map(point => point.x);
-  const ys = points.map(point => point.y);
   const isDrowsy = drowsinessScore > 50;
+  let minX = canvas.width;
+  let minY = canvas.height;
+  let maxX = 0;
+  let maxY = 0;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let index = 0; index < landmarks.length; index++) {
+    const point = landmarks[index];
+    const x = point.x * canvas.width;
+    const y = point.y * canvas.height;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+
   ctx.strokeStyle = isDrowsy ? 'rgba(239,68,68,0.6)' : 'rgba(0,212,170,0.5)';
   ctx.lineWidth = 2;
-  ctx.roundRect(Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 8);
+  ctx.roundRect(minX, minY, maxX - minX, maxY - minY, 8);
   ctx.stroke();
   ctx.fillStyle = isDrowsy ? 'rgba(239,68,68,0.75)' : 'rgba(0,212,170,0.75)';
-  points.forEach((point, index) => {
-    if (index % 6 !== 0) return;
+  for (let index = 0; index < landmarks.length; index += 6) {
+    const point = landmarks[index];
     ctx.beginPath();
-    ctx.arc(point.x, point.y, 1.2, 0, 2 * Math.PI);
+    ctx.arc(point.x * canvas.width, point.y * canvas.height, 1.2, 0, 2 * Math.PI);
     ctx.fill();
-  });
-  drawContour([33, 160, 158, 133, 153, 144].map(index => points[index]), isDrowsy);
-  drawContour([362, 385, 387, 263, 373, 380].map(index => points[index]), isDrowsy);
+  }
+  drawContour([33, 160, 158, 133, 153, 144].map(index => ({
+    x: landmarks[index].x * canvas.width,
+    y: landmarks[index].y * canvas.height
+  })), isDrowsy);
+  drawContour([362, 385, 387, 263, 373, 380].map(index => ({
+    x: landmarks[index].x * canvas.width,
+    y: landmarks[index].y * canvas.height
+  })), isDrowsy);
 
   // Draw Head Alignment HUD Badge on camera overlay
   drawHeadAlignmentHUD();
@@ -1001,7 +1026,14 @@ function runSimulatedLoop() {
       closedFrames = 0;
       document.getElementById('earStatus').textContent = '✓ Eyes open (demo)';
     }
-    if (closedFrames >= sens.frames) triggerAlert({ soundType: 'closure' });
+    if (closedFrames >= sens.frames) {
+      triggerAlert({
+        message: 'Please open your eyes.',
+        voiceText: 'Please open your eyes.',
+        soundType: 'closure',
+        alertType: 'closure'
+      });
+    }
 
     updateGauge(drowsinessScore);
     applyDrowsyState(drowsinessScore);
@@ -1018,22 +1050,37 @@ function updateGauge(score) {
   const offset = total - (score / 100) * total;
   arc.style.strokeDashoffset = offset;
 
-  document.getElementById('gaugePercent').textContent = Math.round(score);
+  const percent = String(Math.round(score));
+  const percentElement = document.getElementById('gaugePercent');
+  if (percentElement.textContent !== percent) percentElement.textContent = percent;
   const lbl = document.getElementById('gaugeLabel');
-  if (score < 30)      { lbl.textContent = 'Alert';    lbl.style.color = '#00d4aa'; }
-  else if (score < 60) { lbl.textContent = 'Drowsy';   lbl.style.color = '#f59e0b'; }
-  else                 { lbl.textContent = 'Danger!';  lbl.style.color = '#ef4444'; }
+  const label = score < 30 ? 'Alert' : score < 60 ? 'Drowsy' : 'Danger!';
+  const color = score < 30 ? '#00d4aa' : score < 60 ? '#f59e0b' : '#ef4444';
+  if (lbl.dataset.state !== label) {
+    lbl.dataset.state = label;
+    lbl.textContent = label;
+    lbl.style.color = color;
+  }
 }
 
 function applyDrowsyState(score) {
-  document.body.classList.remove('drowsy-warn', 'drowsy-danger');
-  if (score >= 60) document.body.classList.add('drowsy-danger');
-  else if (score >= 30) document.body.classList.add('drowsy-warn');
+  const isDanger = score >= 60;
+  const isWarning = !isDanger && score >= 30;
+  document.body.classList.toggle('drowsy-danger', isDanger);
+  document.body.classList.toggle('drowsy-warn', isWarning);
 
   const dot = document.getElementById('statusDot');
-  if (score >= 60)      { dot.className = 'pulse-dot danger'; }
-  else if (score >= 30) { dot.className = 'pulse-dot'; dot.style.background = '#f59e0b'; }
-  else if (isRunning)   { dot.className = 'pulse-dot active'; }
+  const state = isDanger ? 'danger' : isWarning ? 'warn' : isRunning ? 'active' : 'inactive';
+  if (dot.dataset.state === state) return;
+  dot.dataset.state = state;
+  if (isDanger) dot.className = 'pulse-dot danger';
+  else if (isWarning) {
+    dot.className = 'pulse-dot';
+    dot.style.background = '#f59e0b';
+  } else {
+    dot.className = isRunning ? 'pulse-dot active' : 'pulse-dot';
+    dot.style.background = '';
+  }
 }
 
 function decayDrowsiness() {
@@ -1041,15 +1088,20 @@ function decayDrowsiness() {
   updateGauge(drowsinessScore);
 }
 
-function triggerAlert({ title = 'PROLONGED EYE CLOSURE', text = 'The configured eye-closure rule was reached. This research prototype cannot diagnose drowsiness.', voiceText = null, soundType = 'closure' } = {}) {
+function triggerAlert({
+  message = 'Please open your eyes.',
+  voiceText = message,
+  soundType = 'closure',
+  alertType = 'closure',
+} = {}) {
   const now = Date.now();
-  if (now - lastAlertTime < 8000) return;   // throttle alerts
+  if (now - lastAlertTime < 7000) return;
   lastAlertTime = now;
   alertCount++;
   document.getElementById('alertCount').textContent = alertCount;
 
-  document.getElementById('alertTitle').textContent = title;
-  document.getElementById('alertText').textContent = text;
+  const textEl  = document.getElementById('alertText');
+  if (textEl) textEl.textContent = message;
 
   logEvent('alert', {
     model: selectedModel,
@@ -1059,25 +1111,135 @@ function triggerAlert({ title = 'PROLONGED EYE CLOSURE', text = 'The configured 
     closureDurationMs: eyeClosedStart ? Date.now() - eyeClosedStart : 0,
     perclos60s: document.getElementById('perclosValue').textContent,
     earThreshold: sens.ear,
-    alertType: title,
+    alertType,
     headAlignment: currentHeadAlignment
   });
 
-  playAlertSound(soundType);
-  document.getElementById('alertOverlay').classList.remove('hidden');
-  closedFrames = 0;
-  if (voiceText) {
-    speak(voiceText, { volume: voiceSettings.volume });
-  } else {
-    startVoiceEscalation();
+  // Reveal overlay
+  const overlay = document.getElementById('alertOverlay');
+  overlay.classList.remove('hidden');
+  emojiStageBounds = null;
+  requestAnimationFrame(() => {
+    if (!overlay.classList.contains('hidden')) {
+      emojiStageBounds = document.getElementById('emojiStage').getBoundingClientRect();
+    }
+  });
+
+  // Trigger Realistic Emoji Animation: Calm/Normal -> Furious/Angry
+  const emojiStage = document.getElementById('emojiStage');
+  if (emojiStage) {
+    // Start in Normal/Calm state
+    emojiStage.classList.remove('state-angry');
+    emojiStage.classList.add('state-normal');
+
+    // Reset pupil positions
+    const pupilLeft = document.getElementById('pupilLeft');
+    const pupilRight = document.getElementById('pupilRight');
+    if (pupilLeft) pupilLeft.style.transform = 'translate(0px, 0px)';
+    if (pupilRight) pupilRight.style.transform = 'translate(0px, 0px)';
+
+    // After 280ms realization beat, transition to peak fury!
+    if (window.emojiAngerTimer) clearTimeout(window.emojiAngerTimer);
+    window.emojiAngerTimer = setTimeout(() => {
+      emojiStage.classList.remove('state-normal');
+      emojiStage.classList.add('state-angry');
+      playAngryRumbleSound();
+    }, 280);
   }
+
+  // Play Alert Audio Siren/Chime
+  playAlertSound(soundType);
+
+  closedFrames = 0;
+  if (voiceSettings.enabled && voiceText) speak(voiceText, { volume: voiceSettings.volume });
 }
 
 function dismissAlert() {
-  document.getElementById('alertOverlay').classList.add('hidden');
+  if (window.emojiAngerTimer) {
+    clearTimeout(window.emojiAngerTimer);
+    window.emojiAngerTimer = null;
+  }
+  const emojiStage = document.getElementById('emojiStage');
+  if (emojiStage) {
+    emojiStage.classList.remove('state-angry');
+    emojiStage.classList.add('state-normal');
+  }
+  setTimeout(() => {
+    document.getElementById('alertOverlay').classList.add('hidden');
+    emojiStageBounds = null;
+  }, 220);
   drowsinessScore = Math.max(0, drowsinessScore - 30);
-  stopVoiceEscalation();
+  stopVoice();
 }
+
+// Dramatic cinematic whoosh / anger impact boom when emoji enters rage
+function playAngryRumbleSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+
+    // Sub-bass impact thud (65Hz -> 28Hz)
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(65, now);
+    osc.frequency.exponentialRampToValueAtTime(28, now + 0.35);
+
+    gain.gain.setValueAtTime(0.45, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.38);
+
+    // Subtle rage friction / noise crackle
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(140, now);
+    osc2.frequency.exponentialRampToValueAtTime(70, now + 0.22);
+
+    gain2.gain.setValueAtTime(0.18, now);
+    gain2.gain.linearRampToValueAtTime(0.001, now + 0.22);
+
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now);
+    osc2.stop(now + 0.22);
+  } catch (e) {
+    // AudioContext might be blocked until user gesture
+  }
+}
+
+// Keep cursor-driven eye motion to one update per display frame.
+function initEmojiEyeTracking() {
+  window.addEventListener('pointermove', (e) => {
+    const overlay = document.getElementById('alertOverlay');
+    if (!overlay || overlay.classList.contains('hidden')) return;
+
+    lastPointer = { x: e.clientX, y: e.clientY };
+    if (pointerFrameId !== null) return;
+    pointerFrameId = requestAnimationFrame(() => {
+      pointerFrameId = null;
+      const pupilLeft = document.getElementById('pupilLeft');
+      const pupilRight = document.getElementById('pupilRight');
+      if (!pupilLeft || !pupilRight || !lastPointer || !emojiStageBounds) return;
+
+      const dx = lastPointer.x - (emojiStageBounds.left + emojiStageBounds.width / 2);
+      const dy = lastPointer.y - (emojiStageBounds.top + emojiStageBounds.height / 2);
+      const distance = Math.hypot(dx, dy);
+      const offset = Math.min(5.5, distance / 35);
+      const angle = Math.atan2(dy, dx);
+      const px = Math.cos(angle) * offset;
+      const py = Math.sin(angle) * offset;
+
+      pupilLeft.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
+      pupilRight.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
+    });
+  });
+}
+initEmojiEyeTracking();
 
 function playAlertSound(type = 'closure') {
   try {
@@ -1129,8 +1291,6 @@ function playAlertSound(type = 'closure') {
     console.warn('AudioContext alert failed:', e);
   }
 }
-window.playAlertSound = playAlertSound;
-
 function updateStatCards(ear, closure, earSt, closeSt) {
   if (earSt)   document.getElementById('earStatus').textContent    = earSt;
   if (closeSt) document.getElementById('closureStatus').textContent = closeSt;
@@ -1140,6 +1300,7 @@ function setStatus(msg, active) {
   document.getElementById('statusText').textContent = msg;
   const dot = document.getElementById('statusDot');
   dot.className = active ? 'pulse-dot active' : 'pulse-dot';
+  dot.dataset.state = active ? 'active' : 'inactive';
   if (!active) dot.style.background = '';
 }
 

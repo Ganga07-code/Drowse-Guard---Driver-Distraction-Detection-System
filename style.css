@@ -53,48 +53,325 @@ body {
   66%      { transform: translate(-20px,30px) scale(0.95); }
 }
 
-/* ── Alert Overlay ───────────────────────── */
+/* ── Alert Overlay & Realistic Angry Emoji Rig ── */
 .alert-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(239,68,68,0.15);
-  backdrop-filter: blur(8px);
+  background: rgba(10, 4, 4, 0.84);
   display: flex; align-items: center; justify-content: center;
-  animation: alertPulse 0.8s ease-in-out infinite alternate;
+  padding: 20px;
 }
 .alert-overlay.hidden { display: none; }
-@keyframes alertPulse {
-  from { background: rgba(239,68,68,0.10); }
-  to   { background: rgba(239,68,68,0.25); }
-}
+
 .alert-box {
-  background: #1a0a0a;
-  border: 2px solid var(--danger);
-  border-radius: 24px;
-  padding: 48px 40px;
+  background: linear-gradient(180deg, #180a0a 0%, #120606 100%);
+  border: 2px solid rgba(239, 68, 68, 0.7);
+  border-radius: 28px;
+  padding: 28px 32px;
   text-align: center;
-  max-width: 420px;
-  box-shadow: 0 0 60px rgba(239,68,68,0.4);
-  animation: alertSlide 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 0 80px rgba(239, 68, 68, 0.45), 0 20px 50px rgba(0, 0, 0, 0.8);
+  animation: alertBoxEntry 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
 }
-@keyframes alertSlide { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.alert-icon {
-  width: 72px; height: 72px; margin: 0 auto 20px;
-  background: rgba(239,68,68,0.15); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--danger);
-  animation: iconPulse 1s ease-in-out infinite alternate;
+
+.alert-box::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, #ef4444, #f59e0b, #ef4444, transparent);
+  animation: alertTopBorderGlow 2s linear infinite;
 }
-.alert-icon svg { width: 36px; height: 36px; }
-@keyframes iconPulse { from { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } to { box-shadow: 0 0 0 20px rgba(239,68,68,0); } }
-.alert-box h2 { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--danger); margin-bottom: 12px; letter-spacing: 0.5px; }
-.alert-box p { color: #94a3b8; margin-bottom: 28px; line-height: 1.6; }
-.alert-box button {
-  background: linear-gradient(135deg, #dc2626, #ef4444);
-  color: #fff; border: none; border-radius: 12px;
-  padding: 14px 32px; font-size: 1rem; font-weight: 600;
-  cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+
+@keyframes alertTopBorderGlow {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
 }
-.alert-box button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(239,68,68,0.4); }
+
+@keyframes alertBoxEntry {
+  from { transform: scale(0.65) translateY(20px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ── Realistic 3D Interactive Emoji Stage ── */
+.emoji-stage {
+  position: relative;
+  width: 154px;
+  height: 154px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 600px;
+}
+
+/* Ambient Heat Aura */
+.emoji-aura {
+  position: absolute;
+  inset: -15px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.55) 0%, rgba(239, 68, 68, 0.15) 55%, transparent 75%);
+  opacity: 0;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  pointer-events: none;
+}
+
+.emoji-stage.state-angry .emoji-aura {
+  opacity: 1;
+  animation: auraPuff 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes auraPuff {
+  from { transform: scale(0.92); opacity: 0.7; }
+  to   { transform: scale(1.15); opacity: 1; }
+}
+
+/* Billowing Ear Steam Clouds */
+.steam-container {
+  position: absolute;
+  top: 30px;
+  width: 50px;
+  height: 60px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.steam-left  { left: -36px; }
+.steam-right { right: -36px; transform: scaleX(-1); }
+
+.emoji-stage.state-angry .steam-container {
+  opacity: 1;
+}
+
+.steam-cloud {
+  position: absolute;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(240, 240, 240, 0.4) 60%, transparent 80%);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.emoji-stage.state-angry .sc1 {
+  width: 22px; height: 22px;
+  top: 25px; left: 18px;
+  animation: steamPuff 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.emoji-stage.state-angry .sc2 {
+  width: 32px; height: 32px;
+  top: 10px; left: 6px;
+  animation: steamPuff 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.4s;
+}
+
+.emoji-stage.state-angry .sc3 {
+  width: 40px; height: 40px;
+  top: -8px; left: -6px;
+  animation: steamPuff 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.8s;
+}
+
+@keyframes steamPuff {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-25px, -32px) scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* 3D SVG Face Elements */
+.realistic-emoji-svg {
+  width: 150px;
+  height: 150px;
+  overflow: visible;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.55));
+  transition: transform 0.35s ease-out;
+  will-change: transform;
+}
+
+/* Subtle rage shake when furious */
+.emoji-stage.state-angry .realistic-emoji-svg {
+  animation: rageTremor 0.22s ease-in-out infinite alternate;
+}
+
+@keyframes rageTremor {
+  from { transform: translate(-0.7px, 0.4px) rotate(-0.4deg); }
+  to   { transform: translate(0.7px, -0.4px) rotate(0.4deg); }
+}
+
+/* Head Skin: Smooth transition from Golden Yellow to Burning Crimson */
+.head-skin {
+  transition: opacity 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.skin-normal {
+  opacity: 1;
+}
+.skin-angry {
+  opacity: 0;
+}
+.emoji-stage.state-angry .skin-normal {
+  opacity: 0;
+}
+.emoji-stage.state-angry .skin-angry {
+  opacity: 1;
+}
+
+/* Cheeks: Blush -> Hot Rage */
+.cheek {
+  fill: #fca5a5;
+  opacity: 0.35;
+  transition: fill 0.5s ease, opacity 0.5s ease, transform 0.5s ease;
+}
+.emoji-stage.state-angry .cheek {
+  fill: #ff2222;
+  opacity: 0.85;
+  transform: scale(1.3);
+  transform-origin: center;
+}
+
+/* Forehead Brow Furrow Wrinkles */
+.brow-furrows {
+  opacity: 0;
+  transform: scaleY(0.4);
+  transform-origin: 100px 75px;
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.emoji-stage.state-angry .brow-furrows {
+  opacity: 0.95;
+  transform: scaleY(1);
+}
+
+/* Eyebrows: Realistic slam-down into furious V-scowl */
+.brow-mover {
+  transition: transform 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.brow-mover-left {
+  transform-origin: 40px 68px;
+  transform: rotate(0deg) translate(0, 0);
+}
+.brow-mover-right {
+  transform-origin: 160px 68px;
+  transform: rotate(0deg) translate(0, 0);
+}
+
+.emoji-stage.state-angry .brow-mover-left {
+  transform: rotate(26deg) translate(8px, 14px);
+}
+.emoji-stage.state-angry .brow-mover-right {
+  transform: rotate(-26deg) translate(-8px, 14px);
+}
+
+/* Eyelids: Menacing furious glare */
+.eye-lid {
+  opacity: 0;
+  transform: translateY(-26px);
+  transition: opacity 0.75s ease, transform 0.75s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.emoji-stage.state-angry .eye-lid {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Eye Irises: Golden-Brown -> Blazing Scarlet */
+.eye-iris {
+  transition: opacity 0.7s ease;
+}
+.iris-norm { opacity: 1; }
+.iris-ang  { opacity: 0; }
+.emoji-stage.state-angry .iris-norm { opacity: 0; }
+.emoji-stage.state-angry .iris-ang  { opacity: 1; }
+
+/* Interactive Pupil Cursor Tracking */
+.pupil-target {
+  transition: transform 0.08s ease-out;
+}
+
+/* Mouth: Calm Smile -> Furious Gritted-Teeth Scowl */
+.mouth-shape-normal {
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: 100px 145px;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.mouth-shape-angry {
+  opacity: 0;
+  transform: scale(0.65);
+  transform-origin: 100px 145px;
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.emoji-stage.state-angry .mouth-shape-normal {
+  opacity: 0;
+  transform: scale(0.4);
+}
+.emoji-stage.state-angry .mouth-shape-angry {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Forehead Anger Vein (💢) */
+.anger-vein {
+  opacity: 0;
+  transform: translate(144px, 38px) scale(0);
+  transform-origin: 0 0;
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.emoji-stage.state-angry .anger-vein {
+  opacity: 1;
+  transform: translate(144px, 38px) scale(0.9);
+  animation: veinThrobPulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes veinThrobPulse {
+  from { transform: translate(144px, 38px) scale(0.82); }
+  to   { transform: translate(144px, 38px) scale(1.18); }
+}
+
+.alert-message {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+/* Action Button */
+.alert-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.btn-dismiss-alert {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 34px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.45);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+}
+
+.btn-dismiss-alert:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 30px rgba(239, 68, 68, 0.6);
+}
+
+.btn-dismiss-alert:active {
+  transform: translateY(1px);
+}
 
 /* ── Header ──────────────────────────────── */
 .header {
@@ -329,20 +606,6 @@ body {
 .warning-bar { background: linear-gradient(90deg, #f59e0b, #eab308); }
 .metric-sub { grid-column: 2; font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
 
-/* Sound Preview Buttons in Settings */
-.sound-test-group { display: flex; gap: 8px; margin-top: 6px; }
-.btn-test-sound {
-  flex: 1; padding: 8px 10px; border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
-  color: var(--text); font-size: 0.76rem; font-weight: 500;
-  cursor: pointer; transition: all 0.2s ease;
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-}
-.btn-test-sound:hover {
-  background: rgba(0, 212, 170, 0.12); border-color: var(--accent);
-  color: #fff; transform: translateY(-1px);
-}
-
 /* Stats Row */
 .stats-row { display: flex; align-items: center; justify-content: space-around; padding: 16px 20px; }
 .stat-box { text-align: center; }
@@ -399,8 +662,7 @@ body {
 
 /* ── Drowsy State Overrides ──────────────── */
 body.drowsy-warn .video-container { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 40px rgba(245,158,11,0.2); }
-body.drowsy-danger .video-container { border-color: rgba(239,68,68,0.6); box-shadow: 0 0 50px rgba(239,68,68,0.3); animation: dangerFlash 1s ease-in-out infinite alternate; }
-@keyframes dangerFlash { from { box-shadow: 0 0 30px rgba(239,68,68,0.2); } to { box-shadow: 0 0 60px rgba(239,68,68,0.5); } }
+body.drowsy-danger .video-container { border-color: rgba(239,68,68,0.6); box-shadow: 0 0 40px rgba(239,68,68,0.25); }
 
 /* ── Responsive ──────────────────────────── */
 @media (max-width: 960px) {

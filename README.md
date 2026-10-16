@@ -20,12 +20,14 @@ DrowseGuard uses **MediaPipe Face Landmarker** in your browser to analyze facial
 - 👁️ Eye Aspect Ratio (EAR), blink counts, and long eye closures
 - 📊 Rolling 60-second PERCLOS and face-tracking coverage
 - ⚡ Detection FPS and inference time
-- 🚨 Alerts for prolonged eye closure, sustained gaze away, and loss of face tracking
+- 🚨 Alerts for prolonged eye closure, sustained gaze away, and loss of face tracking, with an animated emoji and one short instruction
 - 🧭 Head and feature alignment checks using facial landmarks, with a 70% visibility threshold
-- 🔔 Distinct previewable alert tones for eye closure and looking away
+- 🔔 Distinct alert tones and spoken prompts such as “Please open your eyes” and “Please look straight ahead”
 - 📁 CSV export of session samples and alerts
 
-Sensitivity and the EAR threshold can be adjusted in the app settings. Session logs are held in memory and cleared when the page reloads.
+Voice prompts are enabled by default. Voice alerts, their volume, sensitivity, and the EAR threshold can be adjusted in the app settings. The alert dialog keeps the animated emoji and a single clear instruction; the test-preview buttons and extra alert telemetry text have been removed. Session logs are held in memory and cleared when the page reloads.
+
+Detection is scheduled against new webcam frames where the browser supports video-frame callbacks, and the sparkline redraw is limited to 10 updates per second to reduce unnecessary work.
 
 ## 🔒 Privacy & requirements
 

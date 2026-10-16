@@ -17,19 +17,212 @@
   <div class="bg-orb orb-2"></div>
   <div class="bg-orb orb-3"></div>
 
-  <!-- Alert Overlay -->
-  <div id="alertOverlay" class="alert-overlay hidden">
-    <div class="alert-box">
-      <div class="alert-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
+  <!-- Alert overlay with an animated visual and a concise instruction -->
+  <div id="alertOverlay" class="alert-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="alertText">
+    <div class="alert-box" id="alertBox">
+      <!-- Realistic 3D Interactive Animated Emoji Stage -->
+      <div class="emoji-stage state-normal" id="emojiStage">
+        <!-- Ambient rage heat aura glow -->
+        <div class="emoji-aura"></div>
+
+        <!-- Dynamic Bilateral Steam Puffs -->
+        <div class="steam-container steam-left">
+          <div class="steam-cloud sc1"></div>
+          <div class="steam-cloud sc2"></div>
+          <div class="steam-cloud sc3"></div>
+        </div>
+        <div class="steam-container steam-right">
+          <div class="steam-cloud sc1"></div>
+          <div class="steam-cloud sc2"></div>
+          <div class="steam-cloud sc3"></div>
+        </div>
+
+        <!-- 3D Shaded Animated SVG Face Rig -->
+        <svg class="realistic-emoji-svg" viewBox="0 0 200 200" id="emojiSvg">
+          <defs>
+            <!-- 3D Sphere Radial Gradient: Calm Golden Yellow -->
+            <radialGradient id="headGradNormal" cx="36%" cy="32%" r="68%">
+              <stop offset="0%" stop-color="#FFF9C4" />
+              <stop offset="25%" stop-color="#FDD835" />
+              <stop offset="60%" stop-color="#F59E0B" />
+              <stop offset="88%" stop-color="#D97706" />
+              <stop offset="100%" stop-color="#92400E" />
+            </radialGradient>
+
+            <!-- 3D Sphere Radial Gradient: Furious Burning Crimson Red -->
+            <radialGradient id="headGradAngry" cx="36%" cy="30%" r="68%">
+              <stop offset="0%" stop-color="#FFA8A8" />
+              <stop offset="22%" stop-color="#FF3B30" />
+              <stop offset="58%" stop-color="#DC2626" />
+              <stop offset="85%" stop-color="#991B1B" />
+              <stop offset="100%" stop-color="#450A0A" />
+            </radialGradient>
+
+            <!-- Glossy 3D specular highlight -->
+            <linearGradient id="headGloss" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85" />
+              <stop offset="35%" stop-color="#FFFFFF" stop-opacity="0.2" />
+              <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- Bottom 3D rim reflection -->
+            <linearGradient id="bottomRim" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stop-color="#FEF08A" stop-opacity="0.4" />
+              <stop offset="100%" stop-color="#FEF08A" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- Eye Sclera (White of eye) 3D gradient -->
+            <radialGradient id="scleraGrad" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#FFFFFF" />
+              <stop offset="75%" stop-color="#F1F5F9" />
+              <stop offset="100%" stop-color="#CBD5E1" />
+            </radialGradient>
+
+            <!-- Normal Iris -->
+            <radialGradient id="irisGradNormal" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#854D0E" />
+              <stop offset="50%" stop-color="#451A03" />
+              <stop offset="100%" stop-color="#1C0A00" />
+            </radialGradient>
+
+            <!-- Angry Burning Iris -->
+            <radialGradient id="irisGradAngry" cx="35%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#FEE2E2" />
+              <stop offset="25%" stop-color="#EF4444" />
+              <stop offset="70%" stop-color="#991B1B" />
+              <stop offset="100%" stop-color="#450A0A" />
+            </radialGradient>
+
+            <!-- Eyebrow 3D Gradient -->
+            <linearGradient id="browGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#551904" />
+              <stop offset="50%" stop-color="#320E02" />
+              <stop offset="100%" stop-color="#180701" />
+            </linearGradient>
+
+            <!-- Angry Eyelid Skin Fill -->
+            <linearGradient id="eyelidGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#EF4444" />
+              <stop offset="100%" stop-color="#991B1B" />
+            </linearGradient>
+
+            <!-- Mouth Throat Gradient -->
+            <linearGradient id="mouthThroatGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#350606" />
+              <stop offset="60%" stop-color="#500A0A" />
+              <stop offset="100%" stop-color="#6B0D0D" />
+            </linearGradient>
+
+          </defs>
+
+          <!-- Head Sphere Base -->
+          <g class="emoji-head-sphere">
+            <!-- Golden Yellow base -->
+            <circle class="head-skin skin-normal" cx="100" cy="100" r="82" fill="url(#headGradNormal)" />
+            <!-- Crimson Red rage overlay (crossfaded) -->
+            <circle class="head-skin skin-angry" cx="100" cy="100" r="82" fill="url(#headGradAngry)" />
+            <!-- Bottom rim reflection -->
+            <circle cx="100" cy="100" r="81" fill="url(#bottomRim)" />
+            <!-- 3D Specular top highlight curve -->
+            <ellipse cx="94" cy="44" rx="50" ry="24" fill="url(#headGloss)" transform="rotate(-6 94 44)" />
+          </g>
+
+          <!-- Cheeks blush (glowing orange-red in angry mode) -->
+          <ellipse class="cheek cheek-left" cx="44" cy="116" rx="18" ry="10" />
+          <ellipse class="cheek cheek-right" cx="156" cy="116" rx="18" ry="10" />
+
+          <!-- Furrow Wrinkles between eyebrows -->
+          <g class="brow-furrows">
+            <path class="furrow f1" d="M 94 70 Q 96 78 94 86" fill="none" stroke="#4A0E0E" stroke-width="2.5" stroke-linecap="round" />
+            <path class="furrow f2" d="M 106 70 Q 104 78 106 86" fill="none" stroke="#4A0E0E" stroke-width="2.5" stroke-linecap="round" />
+            <path class="furrow f3" d="M 100 65 Q 100 75 100 84" fill="none" stroke="#4A0E0E" stroke-width="2" stroke-linecap="round" />
+          </g>
+
+          <!-- Eyes Rig -->
+          <g class="eyes-rig">
+            <!-- Left Eye -->
+            <g class="eye-unit eye-unit-left" transform="translate(62, 90)">
+              <ellipse class="eye-sclera" cx="0" cy="0" rx="18" ry="22" fill="url(#scleraGrad)" />
+              <g class="pupil-target pupil-target-left" id="pupilLeft">
+                <circle class="eye-iris iris-norm" cx="0" cy="0" r="11" fill="url(#irisGradNormal)" />
+                <circle class="eye-iris iris-ang" cx="0" cy="0" r="11" fill="url(#irisGradAngry)" />
+                <circle class="eye-pupil" cx="0" cy="0" r="6" fill="#0A0A0A" />
+                <circle cx="-3.5" cy="-4" r="3.2" fill="#FFFFFF" opacity="0.95" />
+                <circle cx="3.5" cy="3.5" r="1.5" fill="#FFFFFF" opacity="0.75" />
+              </g>
+              <!-- Eyelid cutting down during rage -->
+              <path class="eye-lid lid-left" d="M -22 -26 Q 0 -6 22 -14 L 22 -28 L -22 -28 Z" fill="url(#eyelidGrad)" />
+            </g>
+
+            <!-- Right Eye -->
+            <g class="eye-unit eye-unit-right" transform="translate(138, 90)">
+              <ellipse class="eye-sclera" cx="0" cy="0" rx="18" ry="22" fill="url(#scleraGrad)" />
+              <g class="pupil-target pupil-target-right" id="pupilRight">
+                <circle class="eye-iris iris-norm" cx="0" cy="0" r="11" fill="url(#irisGradNormal)" />
+                <circle class="eye-iris iris-ang" cx="0" cy="0" r="11" fill="url(#irisGradAngry)" />
+                <circle class="eye-pupil" cx="0" cy="0" r="6" fill="#0A0A0A" />
+                <circle cx="-3.5" cy="-4" r="3.2" fill="#FFFFFF" opacity="0.95" />
+                <circle cx="3.5" cy="3.5" r="1.5" fill="#FFFFFF" opacity="0.75" />
+              </g>
+              <!-- Eyelid cutting down during rage -->
+              <path class="eye-lid lid-right" d="M -22 -14 Q 0 -6 22 -26 L 22 -28 L -22 -28 Z" fill="url(#eyelidGrad)" />
+            </g>
+          </g>
+
+          <!-- 3D Eyebrows (Dynamically rotate and slam down) -->
+          <g class="brows-rig">
+            <!-- Left Brow -->
+            <g class="brow-mover brow-mover-left" id="browLeft">
+              <path class="brow-shape" d="M 40 68 C 52 64, 74 63, 86 69 C 88 73, 84 77, 78 77 C 68 74, 52 75, 42 77 C 36 76, 36 70, 40 68 Z" fill="url(#browGrad)" />
+            </g>
+            <!-- Right Brow -->
+            <g class="brow-mover brow-mover-right" id="browRight">
+              <path class="brow-shape" d="M 160 68 C 148 64, 126 63, 114 69 C 112 73, 116 77, 122 77 C 132 74, 148 75, 158 77 C 164 76, 164 70, 160 68 Z" fill="url(#browGrad)" />
+            </g>
+          </g>
+
+          <!-- Mouth: Calm Smile (Normal) vs Clenched Roar Teeth (Angry) -->
+          <g class="mouth-rig">
+            <!-- Normal Mouth -->
+            <path class="mouth-shape-normal" d="M 76 138 Q 100 152 124 138" fill="none" stroke="#451A03" stroke-width="4.5" stroke-linecap="round" />
+
+            <!-- Furious Angry Clenched-Teeth Grimace -->
+            <g class="mouth-shape-angry">
+              <!-- Mouth cavity -->
+              <path class="mouth-throat" d="M 68 132 Q 100 124 132 132 Q 138 152 130 162 Q 100 166 70 162 Q 62 152 68 132 Z" fill="url(#mouthThroatGrad)" stroke="#380808" stroke-width="2.5" />
+              <!-- Top Teeth -->
+              <path class="teeth-strip teeth-top" d="M 72 134 Q 100 128 128 134 L 126 142 Q 100 138 74 142 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="0.8" />
+              <!-- Bottom Teeth -->
+              <path class="teeth-strip teeth-bottom" d="M 74 158 Q 100 162 126 158 L 124 150 Q 100 154 76 150 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="0.8" />
+              <!-- Gritted teeth vertical lines -->
+              <line x1="86" y1="133" x2="86" y2="142" stroke="#94A3B8" stroke-width="1.2" />
+              <line x1="100" y1="131" x2="100" y2="142" stroke="#94A3B8" stroke-width="1.2" />
+              <line x1="114" y1="133" x2="114" y2="142" stroke="#94A3B8" stroke-width="1.2" />
+              <line x1="88" y1="150" x2="88" y2="159" stroke="#94A3B8" stroke-width="1.2" />
+              <line x1="100" y1="151" x2="100" y2="161" stroke="#94A3B8" stroke-width="1.2" />
+              <line x1="112" y1="150" x2="112" y2="159" stroke="#94A3B8" stroke-width="1.2" />
+            </g>
+          </g>
+
+          <!-- Throbbing Forehead Anger Vein (💢) -->
+          <g class="anger-vein" transform="translate(144, 38) scale(0.9)">
+            <path d="M -11 -3 L -3 -3 L -3 -11 L 3 -11 L 3 -3 L 11 -3 L 11 3 L 3 3 L 3 11 L -3 11 L -3 3 L -11 3 Z" fill="#EF4444" stroke="#7F1D1D" stroke-width="1.5" />
+            <line x1="-9" y1="-9" x2="9" y2="9" stroke="#DC2626" stroke-width="3" stroke-linecap="round" />
+            <line x1="9" y1="-9" x2="-9" y2="9" stroke="#DC2626" stroke-width="3" stroke-linecap="round" />
+          </g>
         </svg>
       </div>
-      <h2 id="alertTitle">PROLONGED EYE CLOSURE</h2>
-      <p id="alertText">The configured eye-closure rule was reached. This research prototype cannot diagnose drowsiness.</p>
-      <button id="dismissAlert" onclick="dismissAlert()">Acknowledge</button>
+
+      <p id="alertText" class="alert-message" aria-live="assertive">Please open your eyes.</p>
+
+      <div class="alert-actions">
+        <button id="dismissAlert" class="btn-dismiss-alert" onclick="dismissAlert()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;margin-right:6px;">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Acknowledge & Refocus
+        </button>
+      </div>
     </div>
   </div>
 
