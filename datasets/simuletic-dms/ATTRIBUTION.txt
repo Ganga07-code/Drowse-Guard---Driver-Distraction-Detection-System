@@ -1,0 +1,10 @@
+Dataset: Driver Drowsiness Detection Dataset (Synthetic), Simuletic
+Source: https://www.kaggle.com/datasets/simuletic/driver-drowsiness-detection-monitoring-dataset
+License: CC BY-NC-SA 4.0
+License text: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+This project copy contains the 168 labeled JPG frames and six sequence JSON
+files used for the eye-state experiment. The source videos were not copied.
+Attribute Simuletic, use only under the non-commercial terms, and distribute
+adaptations under the same license. The trained model weights are experimental
+and are not cleared for commercial use.
