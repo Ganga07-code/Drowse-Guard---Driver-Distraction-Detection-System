@@ -95,17 +95,86 @@ body {
   to   { transform: scale(1) translateY(0); opacity: 1; }
 }
 
-/* ── Realistic 3D Interactive Emoji Stage ── */
-.emoji-stage {
+/* ── Official ISO/SAE Driver Safety Alert Rig ── */
+.official-alert-header {
   position: relative;
-  width: 154px;
-  height: 154px;
-  margin: 0 auto 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  perspective: 600px;
+  margin-bottom: 18px;
 }
+.official-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 999px;
+  padding: 8px 18px;
+  color: #ef4444;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.25);
+}
+.alert-shield-icon {
+  width: 22px;
+  height: 22px;
+  color: #ef4444;
+  animation: shieldPulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes shieldPulse {
+  0% { transform: scale(1); filter: drop-shadow(0 0 2px #ef4444); }
+  100% { transform: scale(1.15); filter: drop-shadow(0 0 10px #ef4444); }
+}
+.alert-headline {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.alert-message {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #fca5a5;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+.alert-diagnostics-box {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 22px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.diag-item {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.diag-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.diag-value {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'Outfit', monospace;
+}
+
+/* Legacy Emoji Stage (Hidden/Disabled) */
+.emoji-stage { display: none !important; }
 
 /* Ambient Heat Aura */
 .emoji-aura {
@@ -429,9 +498,9 @@ body {
 .main {
   position: relative; z-index: 5;
   display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 24px;
-  padding: 24px 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
+  gap: 20px;
+  padding: 24px clamp(16px, 3vw, 40px);
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -459,22 +528,24 @@ body {
 
 .video-container {
   position: relative;
+  width: 100%;
+  max-width: 800px;
+  max-height: 500px;
+  margin-inline: auto;
   border-radius: var(--radius);
   overflow: hidden;
   background: #070f1c;
   border: 1px solid var(--border);
-  aspect-ratio: 4/3;
+  aspect-ratio: 16/10;
   box-shadow: var(--glow);
 }
 #video {
   width: 100%; height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);
 }
 .overlay-canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
-  transform: scaleX(-1);
 }
 
 /* Corner decorators */
@@ -531,6 +602,65 @@ body {
 .btn-secondary:hover { color: var(--text); border-color: var(--accent); }
 .hidden { display: none !important; }
 .model-select-card { display: grid; gap: 8px; }
+.prototype-notice {
+  border-left: 3px solid var(--warn);
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  padding: 9px 12px;
+}
+.yolo-model-settings {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+.yolo-model-config {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.yolo-model-config legend {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0 5px;
+}
+.yolo-model-config label {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+.yolo-model-config input,
+.yolo-model-config select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+}
+.yolo-model-config input[type="file"] {
+  padding: 6px;
+}
+.model-file-status, .model-file-help {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.model-file-status[data-state="error"] {
+  color: var(--danger);
+}
+.model-file-status[data-state="ready"] {
+  color: var(--accent);
+}
 .model-select-label { color: var(--text); font-size: 0.82rem; font-weight: 600; }
 .model-select {
   width: 100%; padding: 11px 12px; border-radius: 10px;
@@ -539,6 +669,7 @@ body {
 }
 .model-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .model-select:disabled { opacity: 0.65; cursor: not-allowed; }
+.yolo-model-config select:disabled { opacity: 0.65; cursor: not-allowed; }
 
 /* ── Stats Panel ─────────────────────────── */
 .stats-panel { display: flex; flex-direction: column; gap: 14px; }
@@ -612,6 +743,17 @@ body {
 .stat-num { display: block; font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 800; color: var(--text); }
 .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-divider { width: 1px; height: 40px; background: var(--border); }
+.primary-metric { min-height: 82px; }
+.count-metric { display: flex; align-items: center; justify-content: space-between; }
+.primary-metric-label { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+.primary-metric-value {
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.secondary-metric { display: none !important; }
 
 /* Session */
 .session-card { display: flex; flex-direction: column; gap: 12px; }
@@ -664,15 +806,233 @@ body {
 body.drowsy-warn .video-container { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 40px rgba(245,158,11,0.2); }
 body.drowsy-danger .video-container { border-color: rgba(239,68,68,0.6); box-shadow: 0 0 40px rgba(239,68,68,0.25); }
 
+/* YOLOv8 amber accent overrides for metric bars */
+body.theme-yolo8 .metric-bar { background: linear-gradient(90deg, #f97316, #ea580c); }
+body.theme-yolo8 .btn-primary { background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 4px 16px rgba(249,115,22,0.35); }
+body.theme-yolo8 .benchmark-live-pill { color: #fb923c; background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.3); }
+body.theme-yolo8 .btn-primary:hover { box-shadow: 0 8px 24px rgba(249,115,22,0.5); }
+body.theme-yolo8 .header-badge { border-color: rgba(249,115,22,0.3); }
+body.theme-yolo8 .card { border-color: rgba(249,115,22,0.15); }
+body.theme-yolo8 .card-title { color: #fb923c; }
+
+/* YOLO11 cyan/purple accent overrides */
+body.theme-yolo11 .metric-bar { background: linear-gradient(90deg, #00f2fe, #9d4edd); }
+body.theme-yolo11 .btn-primary { background: linear-gradient(135deg, #00f2fe, #9d4edd); box-shadow: 0 4px 16px rgba(0,242,254,0.35); }
+body.theme-yolo11 .benchmark-live-pill { color: #00f2fe; background: rgba(0,242,254,0.12); border-color: rgba(0,242,254,0.3); }
+body.theme-yolo11 .btn-primary:hover { box-shadow: 0 8px 24px rgba(0,242,254,0.55); }
+body.theme-yolo11 .header-badge { border-color: rgba(0,242,254,0.3); }
+body.theme-yolo11 .card { border-color: rgba(0,242,254,0.14); }
+body.theme-yolo11 .card-title { color: #00f2fe; }
+body.theme-yolo11 .logo-text { background: linear-gradient(90deg,#00f2fe,#9d4edd); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
 /* ── Responsive ──────────────────────────── */
-@media (max-width: 960px) {
-  .main { grid-template-columns: 1fr; padding: 16px 20px; }
+@media (max-width: 700px) {
+  .main { grid-template-columns: 1fr; padding: 16px; }
   .stats-panel { display: grid; grid-template-columns: 1fr 1fr; }
   .gauge-card { grid-column: span 2; }
   .header { padding: 16px 20px; }
 }
 @media (max-width: 600px) {
   .stats-panel { grid-template-columns: 1fr; }
+  .yolo-theme .stats-panel { grid-template-columns: 1fr; }
   .gauge-card { grid-column: 1; }
   .controls { flex-direction: column; }
+}
+
+/* =====================================================
+   YOLO ARCHITECTURE THEMES & LAYOUT SHIFT
+   ===================================================== */
+
+/* ── Benchmark Table Styles ─────────────────── */
+.benchmark-card {
+  grid-column: 1 / -1;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+}
+.benchmark-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.benchmark-live-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(0, 212, 170, 0.12);
+  border: 1px solid rgba(0, 212, 170, 0.3);
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.6px;
+}
+.benchmark-table-wrapper {
+  overflow-x: auto;
+}
+.benchmark-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  text-align: left;
+}
+.benchmark-table th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.benchmark-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.bench-name {
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+}
+.benchmark-table tr.bench-active {
+  background: rgba(255, 255, 255, 0.04);
+  outline: 1px solid var(--accent);
+  border-radius: 8px;
+}
+.benchmark-table tr.bench-active .bench-name {
+  color: var(--accent);
+}
+.badge-feature {
+  display: inline-block;
+  font-size: 0.66rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  margin-right: 4px;
+}
+
+/* ── Yawn / MAR Metric Card ─────────────────── */
+.yawn-card .yawn-icon {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+.threshold-marker-yawn {
+  position: absolute;
+  left: 60%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #f59e0b;
+  box-shadow: 0 0 5px rgba(245, 158, 11, 0.8);
+  z-index: 2;
+}
+.model-select-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.model-badge-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* =====================================================
+   THEME 1: YOLOv8 – CYBER-AUTOMOTIVE TELEMETRY THEME
+   - Keeps live metrics beside the camera feed
+   - High-contrast carbon/industrial styling with amber accents
+   ===================================================== */
+body.theme-yolo8 {
+  --bg: #0b0f17;
+  --bg2: #121824;
+  --bg3: #182234;
+  --accent: #f97316;
+  --accent2: #0284c7;
+  --card-bg: rgba(18, 24, 36, 0.85);
+  --border: rgba(249, 115, 22, 0.2);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+}
+
+body.theme-yolo8 .logo-icon {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.35);
+}
+
+body.theme-yolo8 .model-badge-tag {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+/* =====================================================
+   THEME 2: YOLO11 PROTOTYPE – DEEP SPACE NEON THEME
+   - High-tech cyan and purple styling for the prototype mode
+   ===================================================== */
+body.theme-yolo11 {
+  --bg: #05060f;
+  --bg2: #0a0d1f;
+  --bg3: #101533;
+  --accent: #00f2fe;
+  --accent2: #9d4edd;
+  --card-bg: rgba(10, 13, 31, 0.88);
+  --border: rgba(0, 242, 254, 0.22);
+  --text: #f8fafc;
+  --muted: #8b9bb4;
+}
+
+body.theme-yolo11 .bg-grid {
+  background-image:
+    linear-gradient(rgba(0, 242, 254, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(157, 78, 221, 0.05) 1px, transparent 1px);
+}
+
+body.theme-yolo11 .logo-icon {
+  background: linear-gradient(135deg, #00f2fe, #9d4edd);
+  box-shadow: 0 4px 20px rgba(0, 242, 254, 0.4);
+}
+
+body.theme-yolo11 .model-badge-tag {
+  background: rgba(0, 242, 254, 0.15);
+  color: #00f2fe;
+  border-color: rgba(0, 242, 254, 0.4);
+}
+
+.yolo-theme .main {
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
+  max-width: 1400px;
+  gap: 20px;
+}
+
+.yolo-theme .stats-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.yolo-theme .benchmark-card {
+  grid-column: auto;
+}
+
+.yolo-theme .gauge-card {
+  grid-column: auto;
+}
+
+body.yolo-only-mode:not(.yolo-classifier-mode) .mp-only,
+body.yolo-classifier-mode .mp-only:not(.classifier-metric) {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  .video-container {
+    max-height: 56vh;
+  }
+}
+
+@media (max-width: 700px) {
+  .yolo-theme .main {
+    grid-template-columns: 1fr;
+  }
 }

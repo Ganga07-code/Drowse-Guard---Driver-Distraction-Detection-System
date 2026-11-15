@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DrowseGuard – Eye-Closure Research Prototype</title>
-  <meta name="description" content="Browser-based research prototype comparing facial landmark models for eye-closure monitoring." />
+  <meta name="description"
+    content="Browser-based drowsiness-monitoring research prototype with MediaPipe landmarks and optional YOLO ONNX detection." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
+
 <body>
   <!-- Animated background -->
   <div class="bg-grid"></div>
@@ -17,210 +22,46 @@
   <div class="bg-orb orb-2"></div>
   <div class="bg-orb orb-3"></div>
 
-  <!-- Alert overlay with an animated visual and a concise instruction -->
+  <!-- Research-prototype alert overlay -->
   <div id="alertOverlay" class="alert-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="alertText">
     <div class="alert-box" id="alertBox">
-      <!-- Realistic 3D Interactive Animated Emoji Stage -->
-      <div class="emoji-stage state-normal" id="emojiStage">
-        <!-- Ambient rage heat aura glow -->
-        <div class="emoji-aura"></div>
-
-        <!-- Dynamic Bilateral Steam Puffs -->
-        <div class="steam-container steam-left">
-          <div class="steam-cloud sc1"></div>
-          <div class="steam-cloud sc2"></div>
-          <div class="steam-cloud sc3"></div>
+      <div class="official-alert-header">
+        <div class="official-alert-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="alert-shield-icon">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <circle cx="12" cy="16" r="1" fill="currentColor" />
+          </svg>
+          <span>DROWSINESS MONITORING ALERT</span>
         </div>
-        <div class="steam-container steam-right">
-          <div class="steam-cloud sc1"></div>
-          <div class="steam-cloud sc2"></div>
-          <div class="steam-cloud sc3"></div>
-        </div>
-
-        <!-- 3D Shaded Animated SVG Face Rig -->
-        <svg class="realistic-emoji-svg" viewBox="0 0 200 200" id="emojiSvg">
-          <defs>
-            <!-- 3D Sphere Radial Gradient: Calm Golden Yellow -->
-            <radialGradient id="headGradNormal" cx="36%" cy="32%" r="68%">
-              <stop offset="0%" stop-color="#FFF9C4" />
-              <stop offset="25%" stop-color="#FDD835" />
-              <stop offset="60%" stop-color="#F59E0B" />
-              <stop offset="88%" stop-color="#D97706" />
-              <stop offset="100%" stop-color="#92400E" />
-            </radialGradient>
-
-            <!-- 3D Sphere Radial Gradient: Furious Burning Crimson Red -->
-            <radialGradient id="headGradAngry" cx="36%" cy="30%" r="68%">
-              <stop offset="0%" stop-color="#FFA8A8" />
-              <stop offset="22%" stop-color="#FF3B30" />
-              <stop offset="58%" stop-color="#DC2626" />
-              <stop offset="85%" stop-color="#991B1B" />
-              <stop offset="100%" stop-color="#450A0A" />
-            </radialGradient>
-
-            <!-- Glossy 3D specular highlight -->
-            <linearGradient id="headGloss" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85" />
-              <stop offset="35%" stop-color="#FFFFFF" stop-opacity="0.2" />
-              <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
-            </linearGradient>
-
-            <!-- Bottom 3D rim reflection -->
-            <linearGradient id="bottomRim" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stop-color="#FEF08A" stop-opacity="0.4" />
-              <stop offset="100%" stop-color="#FEF08A" stop-opacity="0" />
-            </linearGradient>
-
-            <!-- Eye Sclera (White of eye) 3D gradient -->
-            <radialGradient id="scleraGrad" cx="35%" cy="30%" r="70%">
-              <stop offset="0%" stop-color="#FFFFFF" />
-              <stop offset="75%" stop-color="#F1F5F9" />
-              <stop offset="100%" stop-color="#CBD5E1" />
-            </radialGradient>
-
-            <!-- Normal Iris -->
-            <radialGradient id="irisGradNormal" cx="35%" cy="35%" r="65%">
-              <stop offset="0%" stop-color="#854D0E" />
-              <stop offset="50%" stop-color="#451A03" />
-              <stop offset="100%" stop-color="#1C0A00" />
-            </radialGradient>
-
-            <!-- Angry Burning Iris -->
-            <radialGradient id="irisGradAngry" cx="35%" cy="35%" r="65%">
-              <stop offset="0%" stop-color="#FEE2E2" />
-              <stop offset="25%" stop-color="#EF4444" />
-              <stop offset="70%" stop-color="#991B1B" />
-              <stop offset="100%" stop-color="#450A0A" />
-            </radialGradient>
-
-            <!-- Eyebrow 3D Gradient -->
-            <linearGradient id="browGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#551904" />
-              <stop offset="50%" stop-color="#320E02" />
-              <stop offset="100%" stop-color="#180701" />
-            </linearGradient>
-
-            <!-- Angry Eyelid Skin Fill -->
-            <linearGradient id="eyelidGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#EF4444" />
-              <stop offset="100%" stop-color="#991B1B" />
-            </linearGradient>
-
-            <!-- Mouth Throat Gradient -->
-            <linearGradient id="mouthThroatGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#350606" />
-              <stop offset="60%" stop-color="#500A0A" />
-              <stop offset="100%" stop-color="#6B0D0D" />
-            </linearGradient>
-
-          </defs>
-
-          <!-- Head Sphere Base -->
-          <g class="emoji-head-sphere">
-            <!-- Golden Yellow base -->
-            <circle class="head-skin skin-normal" cx="100" cy="100" r="82" fill="url(#headGradNormal)" />
-            <!-- Crimson Red rage overlay (crossfaded) -->
-            <circle class="head-skin skin-angry" cx="100" cy="100" r="82" fill="url(#headGradAngry)" />
-            <!-- Bottom rim reflection -->
-            <circle cx="100" cy="100" r="81" fill="url(#bottomRim)" />
-            <!-- 3D Specular top highlight curve -->
-            <ellipse cx="94" cy="44" rx="50" ry="24" fill="url(#headGloss)" transform="rotate(-6 94 44)" />
-          </g>
-
-          <!-- Cheeks blush (glowing orange-red in angry mode) -->
-          <ellipse class="cheek cheek-left" cx="44" cy="116" rx="18" ry="10" />
-          <ellipse class="cheek cheek-right" cx="156" cy="116" rx="18" ry="10" />
-
-          <!-- Furrow Wrinkles between eyebrows -->
-          <g class="brow-furrows">
-            <path class="furrow f1" d="M 94 70 Q 96 78 94 86" fill="none" stroke="#4A0E0E" stroke-width="2.5" stroke-linecap="round" />
-            <path class="furrow f2" d="M 106 70 Q 104 78 106 86" fill="none" stroke="#4A0E0E" stroke-width="2.5" stroke-linecap="round" />
-            <path class="furrow f3" d="M 100 65 Q 100 75 100 84" fill="none" stroke="#4A0E0E" stroke-width="2" stroke-linecap="round" />
-          </g>
-
-          <!-- Eyes Rig -->
-          <g class="eyes-rig">
-            <!-- Left Eye -->
-            <g class="eye-unit eye-unit-left" transform="translate(62, 90)">
-              <ellipse class="eye-sclera" cx="0" cy="0" rx="18" ry="22" fill="url(#scleraGrad)" />
-              <g class="pupil-target pupil-target-left" id="pupilLeft">
-                <circle class="eye-iris iris-norm" cx="0" cy="0" r="11" fill="url(#irisGradNormal)" />
-                <circle class="eye-iris iris-ang" cx="0" cy="0" r="11" fill="url(#irisGradAngry)" />
-                <circle class="eye-pupil" cx="0" cy="0" r="6" fill="#0A0A0A" />
-                <circle cx="-3.5" cy="-4" r="3.2" fill="#FFFFFF" opacity="0.95" />
-                <circle cx="3.5" cy="3.5" r="1.5" fill="#FFFFFF" opacity="0.75" />
-              </g>
-              <!-- Eyelid cutting down during rage -->
-              <path class="eye-lid lid-left" d="M -22 -26 Q 0 -6 22 -14 L 22 -28 L -22 -28 Z" fill="url(#eyelidGrad)" />
-            </g>
-
-            <!-- Right Eye -->
-            <g class="eye-unit eye-unit-right" transform="translate(138, 90)">
-              <ellipse class="eye-sclera" cx="0" cy="0" rx="18" ry="22" fill="url(#scleraGrad)" />
-              <g class="pupil-target pupil-target-right" id="pupilRight">
-                <circle class="eye-iris iris-norm" cx="0" cy="0" r="11" fill="url(#irisGradNormal)" />
-                <circle class="eye-iris iris-ang" cx="0" cy="0" r="11" fill="url(#irisGradAngry)" />
-                <circle class="eye-pupil" cx="0" cy="0" r="6" fill="#0A0A0A" />
-                <circle cx="-3.5" cy="-4" r="3.2" fill="#FFFFFF" opacity="0.95" />
-                <circle cx="3.5" cy="3.5" r="1.5" fill="#FFFFFF" opacity="0.75" />
-              </g>
-              <!-- Eyelid cutting down during rage -->
-              <path class="eye-lid lid-right" d="M -22 -14 Q 0 -6 22 -26 L 22 -28 L -22 -28 Z" fill="url(#eyelidGrad)" />
-            </g>
-          </g>
-
-          <!-- 3D Eyebrows (Dynamically rotate and slam down) -->
-          <g class="brows-rig">
-            <!-- Left Brow -->
-            <g class="brow-mover brow-mover-left" id="browLeft">
-              <path class="brow-shape" d="M 40 68 C 52 64, 74 63, 86 69 C 88 73, 84 77, 78 77 C 68 74, 52 75, 42 77 C 36 76, 36 70, 40 68 Z" fill="url(#browGrad)" />
-            </g>
-            <!-- Right Brow -->
-            <g class="brow-mover brow-mover-right" id="browRight">
-              <path class="brow-shape" d="M 160 68 C 148 64, 126 63, 114 69 C 112 73, 116 77, 122 77 C 132 74, 148 75, 158 77 C 164 76, 164 70, 160 68 Z" fill="url(#browGrad)" />
-            </g>
-          </g>
-
-          <!-- Mouth: Calm Smile (Normal) vs Clenched Roar Teeth (Angry) -->
-          <g class="mouth-rig">
-            <!-- Normal Mouth -->
-            <path class="mouth-shape-normal" d="M 76 138 Q 100 152 124 138" fill="none" stroke="#451A03" stroke-width="4.5" stroke-linecap="round" />
-
-            <!-- Furious Angry Clenched-Teeth Grimace -->
-            <g class="mouth-shape-angry">
-              <!-- Mouth cavity -->
-              <path class="mouth-throat" d="M 68 132 Q 100 124 132 132 Q 138 152 130 162 Q 100 166 70 162 Q 62 152 68 132 Z" fill="url(#mouthThroatGrad)" stroke="#380808" stroke-width="2.5" />
-              <!-- Top Teeth -->
-              <path class="teeth-strip teeth-top" d="M 72 134 Q 100 128 128 134 L 126 142 Q 100 138 74 142 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="0.8" />
-              <!-- Bottom Teeth -->
-              <path class="teeth-strip teeth-bottom" d="M 74 158 Q 100 162 126 158 L 124 150 Q 100 154 76 150 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="0.8" />
-              <!-- Gritted teeth vertical lines -->
-              <line x1="86" y1="133" x2="86" y2="142" stroke="#94A3B8" stroke-width="1.2" />
-              <line x1="100" y1="131" x2="100" y2="142" stroke="#94A3B8" stroke-width="1.2" />
-              <line x1="114" y1="133" x2="114" y2="142" stroke="#94A3B8" stroke-width="1.2" />
-              <line x1="88" y1="150" x2="88" y2="159" stroke="#94A3B8" stroke-width="1.2" />
-              <line x1="100" y1="151" x2="100" y2="161" stroke="#94A3B8" stroke-width="1.2" />
-              <line x1="112" y1="150" x2="112" y2="159" stroke="#94A3B8" stroke-width="1.2" />
-            </g>
-          </g>
-
-          <!-- Throbbing Forehead Anger Vein (💢) -->
-          <g class="anger-vein" transform="translate(144, 38) scale(0.9)">
-            <path d="M -11 -3 L -3 -3 L -3 -11 L 3 -11 L 3 -3 L 11 -3 L 11 3 L 3 3 L 3 11 L -3 11 L -3 3 L -11 3 Z" fill="#EF4444" stroke="#7F1D1D" stroke-width="1.5" />
-            <line x1="-9" y1="-9" x2="9" y2="9" stroke="#DC2626" stroke-width="3" stroke-linecap="round" />
-            <line x1="9" y1="-9" x2="-9" y2="9" stroke="#DC2626" stroke-width="3" stroke-linecap="round" />
-          </g>
-        </svg>
+        <div class="alert-pulse-ring"></div>
       </div>
 
-      <p id="alertText" class="alert-message" aria-live="assertive">Please open your eyes.</p>
+      <h3 id="alertHeadline" class="alert-headline">MONITORING ALERT</h3>
+      <p id="alertText" class="alert-message" aria-live="assertive">Please open your eyes immediately.</p>
+
+      <div class="alert-diagnostics-box" id="alertDiagnostics">
+        <div class="diag-item">
+          <span class="diag-label">Selected mode:</span>
+          <span class="diag-value" id="alertDiagModel">MediaPipe Face Landmarker</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Intervention Cause:</span>
+          <span class="diag-value" id="alertDiagCause">Prolonged Eye Closure</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Rule-based level:</span>
+          <span class="diag-value" id="alertDiagRisk">HIGH</span>
+        </div>
+      </div>
 
       <div class="alert-actions">
         <button id="dismissAlert" class="btn-dismiss-alert" onclick="dismissAlert()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;margin-right:6px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            style="width:18px;height:18px;margin-right:8px;">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
-          Acknowledge & Refocus
+          Acknowledge & Resume Monitoring
         </button>
       </div>
     </div>
@@ -231,9 +72,9 @@
     <div class="logo">
       <div class="logo-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4l3 3"/>
-          <path d="M8.5 8.5C9.5 7 10.7 6 12 6s2.5 1 3.5 2.5"/>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4l3 3" />
+          <path d="M8.5 8.5C9.5 7 10.7 6 12 6s2.5 1 3.5 2.5" />
         </svg>
       </div>
       <span class="logo-text">DrowseGuard</span>
@@ -279,136 +120,96 @@
       <div class="controls">
         <button id="startBtn" class="btn btn-primary" onclick="startDetection()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3"/>
+            <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
           Start Detection
         </button>
         <button id="stopBtn" class="btn btn-danger hidden" onclick="stopDetection()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="6" y="6" width="12" height="12" rx="1"/>
+            <rect x="6" y="6" width="12" height="12" rx="1" />
           </svg>
           Stop
         </button>
         <button id="resetBtn" class="btn btn-secondary" onclick="resetStats()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="1 4 1 10 7 10"/>
-            <path d="M3.51 15a9 9 0 1 0 .49-3.56"/>
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 .49-3.56" />
           </svg>
           Reset
         </button>
       </div>
 
-      <div class="card model-select-card">
-        <label for="modelSelect" class="model-select-label">Landmark model</label>
+      <!-- Architecture & Model Selection -->
+      <div class="card model-select-card" id="modelSelectCard">
+        <div class="model-select-header">
+          <label for="modelSelect" class="model-select-label">Inference mode</label>
+          <span class="model-badge-tag" id="modelBadgeTag">Baseline</span>
+        </div>
         <select id="modelSelect" class="model-select" onchange="updateSelectedModel(this.value)">
-          <option value="mediapipe" selected>MediaPipe Face Landmarker</option>
+          <option value="mediapipe" selected>MediaPipe / Face API (Default Theme · Baseline)</option>
+          <option value="yolov8">YOLOv8 ONNX</option>
+          <option value="yolo11">YOLO11 ONNX</option>
         </select>
-        <p class="evaluation-note">MediaPipe is the active model for this prototype. The same EAR and alert rules are used for monitoring.</p>
+        <p class="evaluation-note" id="modelNote">MediaPipe measures eye closure, blinks, and gaze.</p>
+        <p class="prototype-notice" id="prototypeNotice" role="note">YOLO detects only classes in its model. Use MediaPipe for eye, blink, and gaze alerts.</p>
+        <div class="yolo-model-settings hidden" id="yoloModelSettings">
+          <fieldset class="yolo-model-config" id="yolov8Config">
+            <legend>YOLOv8 model</legend>
+            <label for="yolov8Task">Model task</label>
+            <select id="yolov8Task" onchange="updateSelectedModel('yolov8')">
+              <option value="detection">Object detection</option>
+              <option value="classification">Eye-state classification</option>
+            </select>
+            <label for="yolov8File">ONNX weights</label>
+            <input id="yolov8File" type="file" accept=".onnx,application/onnx" onchange="handleYoloModelFile('yolov8', this)">
+            <p class="model-file-status" id="yolov8FileStatus">No model selected</p>
+            <label for="yolov8Labels">Class labels (model order; comma-separated)</label>
+            <input id="yolov8Labels" type="text" placeholder="Closed,Drowsy-Microsleep,Open">
+            <label for="yolov8DrowsyClasses">Alert class IDs (comma-separated)</label>
+            <input id="yolov8DrowsyClasses" type="text" placeholder="0,1">
+            <label for="yolov8Confidence">Score threshold</label>
+            <input id="yolov8Confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.25">
+          </fieldset>
+          <fieldset class="yolo-model-config hidden" id="yolo11Config">
+            <legend>YOLO11 model</legend>
+            <label for="yolo11Task">Model task</label>
+            <select id="yolo11Task" onchange="updateSelectedModel('yolo11')">
+              <option value="detection">Object detection</option>
+              <option value="classification">Eye-state classification</option>
+            </select>
+            <label for="yolo11File">ONNX weights</label>
+            <input id="yolo11File" type="file" accept=".onnx,application/onnx" onchange="handleYoloModelFile('yolo11', this)">
+            <p class="model-file-status" id="yolo11FileStatus">No model selected</p>
+            <label for="yolo11Labels">Class labels (model order; comma-separated)</label>
+            <input id="yolo11Labels" type="text" placeholder="Closed,Drowsy-Microsleep,Open">
+            <label for="yolo11DrowsyClasses">Alert class IDs (comma-separated)</label>
+            <input id="yolo11DrowsyClasses" type="text" placeholder="0,1">
+            <label for="yolo11Confidence">Score threshold</label>
+            <input id="yolo11Confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.25">
+          </fieldset>
+          <p class="model-file-help">For the research classifiers, choose Eye-state classification, enter labels as Closed,Drowsy-Microsleep,Open and alert IDs as 0,1. These full-frame models do not detect gaze-away or locate eyes.</p>
+        </div>
       </div>
     </section>
 
-    <!-- Right Panel: Stats & Info -->
-    <section class="stats-panel">
-
-      <!-- Drowsiness Level Gauge -->
-      <div class="card gauge-card">
-        <h3 class="card-title">Rule-based Closure Indicator</h3>
-        <div class="gauge-container">
-          <svg class="gauge-svg" viewBox="0 0 200 120">
-            <!-- Background arc -->
-            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1e2a3a" stroke-width="16" stroke-linecap="round"/>
-            <!-- Colored arc -->
-            <path id="gaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGradient)" stroke-width="16" stroke-linecap="round"
-              stroke-dasharray="251" stroke-dashoffset="251"/>
-            <!-- Gradient -->
-            <defs>
-              <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#00d4aa"/>
-                <stop offset="50%" stop-color="#f59e0b"/>
-                <stop offset="100%" stop-color="#ef4444"/>
-              </linearGradient>
-            </defs>
-          </svg>
-          <div class="gauge-value">
-            <span id="gaugePercent">0</span>
-            <small>%</small>
-          </div>
-          <canvas id="earSpark" width="200" height="40" style="display:block; margin-top:8px;"></canvas>
-          <div class="gauge-label" id="gaugeLabel">Alert</div>
-        </div>
+    <!-- Right Panel: Requested live metrics -->
+    <section class="stats-panel" id="statsPanel" aria-label="Live driver monitoring metrics">
+      <div class="card primary-metric count-metric" id="alertMetricCard">
+        <span class="primary-metric-label">Alerts</span>
+        <strong class="primary-metric-value" id="alertCount">0</strong>
       </div>
 
-      <div class="card metric-card perclos-card">
-        <div class="metric-icon eye-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/>
-            <path d="M12 9v3l2 1"/>
-          </svg>
-        </div>
-        <div class="metric-info">
-          <span class="metric-label">PERCLOS · rolling 60 s</span>
-          <span class="metric-value" id="perclosValue">—</span>
-        </div>
-        <div class="metric-bar-container">
-          <div class="metric-bar danger-bar" id="perclosBar" style="width: 0%"></div>
-        </div>
-        <div class="metric-sub" id="perclosCoverage">Waiting for face tracking</div>
+      <div class="card primary-metric count-metric" id="blinkMetricCard">
+        <span class="primary-metric-label" id="blinkMetricLabel">Blinks</span>
+        <strong class="primary-metric-value" id="blinkCount">0</strong>
       </div>
 
-      <!-- EAR Metric -->
-      <div class="card metric-card">
-        <div class="metric-icon eye-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </div>
-        <div class="metric-info">
-          <span class="metric-label">Eye Aspect Ratio (EAR)</span>
-          <span class="metric-value" id="earValue">—</span>
-        </div>
-        <div class="metric-bar-container">
-          <div class="metric-bar" id="earBar" style="width: 0%"></div>
-        </div>
-        <div class="metric-sub" id="earStatus">Waiting for detection...</div>
-      </div>
-
-      <!-- Head & Gaze Alignment Metric -->
-      <div class="card metric-card gaze-card">
-        <div class="metric-icon gaze-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M12 7v5l3 2"/>
-            <path d="M9 10h.01M15 10h.01"/>
-            <path d="M9.5 16a3.5 3.5 0 0 0 5 0"/>
-          </svg>
-        </div>
-        <div class="metric-info">
-          <span class="metric-label">Head & Gaze Alignment (70% min)</span>
-          <span class="metric-value" id="gazeAlignmentValue">—</span>
-        </div>
-        <div class="metric-bar-container gaze-bar-container">
-          <div class="threshold-marker-70" title="70% Alert Threshold"></div>
-          <div class="metric-bar" id="gazeAlignmentBar" style="width: 0%"></div>
-        </div>
-        <div class="metric-sub" id="gazeAlignmentStatus">Waiting for detection...</div>
-      </div>
-
-      <!-- Export / Logs -->
-      <div class="card">
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" onclick="downloadLogs()">Export Logs (CSV)</button>
-          <button class="btn btn-secondary" onclick="clearLogs()">Clear Logs</button>
-        </div>
-      </div>
-
-      <!-- Blink Stats -->
-      <div class="card metric-card">
+      <div class="card metric-card primary-metric" id="closureMetricCard">
         <div class="metric-icon blink-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-            <line x1="1" y1="1" x2="23" y2="23"/>
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+            <line x1="1" y1="1" x2="23" y2="23" />
           </svg>
         </div>
         <div class="metric-info">
@@ -421,58 +222,213 @@
         <div class="metric-sub" id="closureStatus">Eyes open</div>
       </div>
 
-      <!-- Blink counter -->
-      <div class="card stats-row">
-        <div class="stat-box">
-          <span class="stat-num" id="blinkCount">0</span>
-          <span class="stat-label">Blinks</span>
+      <div class="card metric-card primary-metric gaze-card" id="gazeMetricCard">
+        <div class="metric-icon gaze-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+            <path d="M9 10h.01M15 10h.01" />
+            <path d="M9.5 16a3.5 3.5 0 0 0 5 0" />
+          </svg>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat-box">
+        <div class="metric-info">
+          <span class="metric-label" id="gazeMetricLabel">Gaze Alignment (%)</span>
+          <span class="metric-value" id="gazeAlignmentValue">—</span>
+        </div>
+        <div class="metric-bar-container gaze-bar-container">
+          <div class="threshold-marker-70" title="70% Alert Threshold"></div>
+          <div class="metric-bar" id="gazeAlignmentBar" style="width: 0%"></div>
+        </div>
+        <div class="metric-sub" id="gazeAlignmentStatus">Waiting for detection...</div>
+      </div>
+
+      <!-- Live telemetry for the active inference engines -->
+      <div class="card benchmark-card" id="benchmarkCard">
+        <div class="benchmark-header">
+          <h3 class="card-title">Inference Engine Telemetry</h3>
+          <span class="benchmark-live-pill">LIVE INFERENCE</span>
+        </div>
+        <div class="benchmark-table-wrapper">
+          <table class="benchmark-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Inference time</th>
+                <th>Pipeline FPS</th>
+                <th>Status / measurements</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="benchRow-mediapipe" class="bench-active">
+                <td><strong class="bench-name">MediaPipe Face Landmarker</strong></td>
+                <td id="benchInf-mediapipe">—</td>
+                <td id="benchFps-mediapipe">—</td>
+                <td id="benchStatus-mediapipe"><span class="badge-feature">Active · EAR · MAR · landmark alignment</span></td>
+              </tr>
+              <tr id="benchRow-yolov8">
+                <td><strong class="bench-name">YOLOv8</strong></td>
+                <td id="benchInf-yolov8">No model loaded</td>
+                <td id="benchFps-yolov8">—</td>
+                <td id="benchStatus-yolov8"><span class="badge-feature">Waiting for ONNX model</span></td>
+              </tr>
+              <tr id="benchRow-yolo11">
+                <td><strong class="bench-name">YOLO11</strong></td>
+                <td id="benchInf-yolo11">No model loaded</td>
+                <td id="benchFps-yolo11">—</td>
+                <td id="benchStatus-yolo11"><span class="badge-feature">Waiting for ONNX model</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Drowsiness Level Gauge -->
+      <div class="card gauge-card mp-only secondary-metric">
+        <h3 class="card-title">Rule-based Closure Indicator</h3>
+        <div class="gauge-container">
+          <svg class="gauge-svg" viewBox="0 0 200 120">
+            <!-- Background arc -->
+            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1e2a3a" stroke-width="16"
+              stroke-linecap="round" />
+            <!-- Colored arc -->
+            <path id="gaugeArc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGradient)"
+              stroke-width="16" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251" />
+            <!-- Gradient -->
+            <defs>
+              <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#00d4aa" />
+                <stop offset="50%" stop-color="#f59e0b" />
+                <stop offset="100%" stop-color="#ef4444" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="gauge-value">
+            <span id="gaugePercent">0</span>
+            <small>%</small>
+          </div>
+          <canvas id="earSpark" width="200" height="40" style="display:block; margin-top:8px;"></canvas>
+          <div class="gauge-label" id="gaugeLabel">Alert</div>
+        </div>
+      </div>
+
+      <!-- PERCLOS 60s -->
+      <div class="card metric-card perclos-card mp-only classifier-metric secondary-metric">
+        <div class="metric-icon eye-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+            <path d="M12 9v3l2 1" />
+          </svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label" id="perclosMetricLabel">PERCLOS · rolling 60 s</span>
+          <span class="metric-value" id="perclosValue">—</span>
+        </div>
+        <div class="metric-bar-container">
+          <div class="metric-bar danger-bar" id="perclosBar" style="width: 0%"></div>
+        </div>
+        <div class="metric-sub" id="perclosCoverage">Waiting for face tracking</div>
+      </div>
+
+      <!-- EAR Metric -->
+      <div class="card metric-card mp-only classifier-metric secondary-metric">
+        <div class="metric-icon eye-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label" id="earMetricLabel">Eye Aspect Ratio (EAR)</span>
+          <span class="metric-value" id="earValue">—</span>
+        </div>
+        <div class="metric-bar-container">
+          <div class="metric-bar" id="earBar" style="width: 0%"></div>
+        </div>
+        <div class="metric-sub" id="earStatus">Waiting for detection...</div>
+      </div>
+
+      <!-- Mouth Aspect Ratio (MAR) from MediaPipe landmarks -->
+      <div class="card metric-card yawn-card mp-only secondary-metric" id="yawnCard">
+        <div class="metric-icon yawn-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <ellipse cx="12" cy="15" rx="4" ry="3" />
+            <circle cx="9" cy="9" r="1" fill="currentColor" />
+            <circle cx="15" cy="9" r="1" fill="currentColor" />
+          </svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">Mouth Aspect Ratio (MediaPipe landmarks)</span>
+          <span class="metric-value" id="marValue">—</span>
+        </div>
+        <div class="metric-bar-container">
+          <div class="threshold-marker-yawn" title="Yawn Threshold (0.60)"></div>
+          <div class="metric-bar" id="marBar" style="width: 0%"></div>
+        </div>
+        <div class="metric-sub" id="marStatus">Mouth closed · Optimal</div>
+      </div>
+
+      <!-- Export / Logs -->
+      <div class="card secondary-metric">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" onclick="downloadLogs()">Export Logs (CSV)</button>
+          <button class="btn btn-secondary" onclick="clearLogs()">Clear Logs</button>
+        </div>
+      </div>
+
+      <!-- Blink Stats -->
+      <!-- Blink / Yawn / Alert Counter Row -->
+      <div class="card stats-row secondary-metric">
+        <div class="stat-divider mp-only"></div>
+        <div class="stat-box mp-only">
+          <span class="stat-num" id="yawnCount">0</span>
+          <span class="stat-label">Yawns</span>
+        </div>
+        <div class="stat-divider mp-only"></div>
+        <div class="stat-box mp-only classifier-metric">
           <span class="stat-num" id="longClosureCount">0</span>
           <span class="stat-label">Long Closures</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-box">
-          <span class="stat-num" id="alertCount">0</span>
-          <span class="stat-label">Alerts</span>
         </div>
       </div>
 
       <!-- Session Info -->
-      <div class="card session-card">
+      <div class="card session-card secondary-metric">
         <div class="session-item">
           <span class="session-label">Session Duration</span>
           <span class="session-value" id="sessionTime">00:00</span>
         </div>
         <div class="session-item">
-          <span class="session-label">Detection FPS</span>
+          <span class="session-label">Pipeline FPS</span>
           <span class="session-value" id="fpsValue">—</span>
         </div>
         <div class="session-item">
-          <span class="session-label">Inference time</span>
+          <span class="session-label" id="inferenceMetricLabel">MediaPipe inference time</span>
           <span class="session-value" id="inferenceValue">—</span>
         </div>
         <div class="session-item">
-          <span class="session-label">Active model</span>
+          <span class="session-label">Selected mode</span>
           <span class="session-value" id="activeModelValue">MediaPipe v1.1.0</span>
         </div>
         <div class="session-item">
-          <span class="session-label">Face Detected</span>
+          <span class="session-label" id="faceDetectedLabel">Face Detected</span>
           <span class="session-value" id="faceDetected">No</span>
         </div>
-        <div class="session-item">
+        <div class="session-item mp-only">
           <span class="session-label">Head Alignment</span>
           <span class="session-value" id="headAlignmentValue">—</span>
         </div>
         <div class="session-item">
+          <span class="session-label" id="yoloScoreMetricLabel">YOLO detection confidence</span>
+          <span class="session-value" id="yoloConfValue" title="Confidence from the selected YOLO ONNX model">—</span>
+        </div>
+        <div class="session-item mp-only">
           <span class="session-label">Threshold (EAR)</span>
           <span class="session-value" id="thresholdValue">0.25</span>
         </div>
       </div>
 
       <!-- Performance Evaluation -->
-      <div class="card evaluation-card">
+      <div class="card evaluation-card secondary-metric">
         <div class="evaluation-heading">
           <div>
             <h3 class="card-title">Session Telemetry</h3>
@@ -482,11 +438,11 @@
         </div>
         <div class="evaluation-grid">
           <div class="evaluation-metric">
-            <span class="evaluation-label">Face coverage</span>
+            <span class="evaluation-label" id="coverageMetricLabel">Face coverage</span>
             <strong id="faceCoverage">--</strong>
           </div>
           <div class="evaluation-metric">
-            <span class="evaluation-label">Avg. EAR</span>
+            <span class="evaluation-label" id="averageMetricLabel">Avg. EAR</span>
             <strong id="averageEar">--</strong>
           </div>
           <div class="evaluation-metric">
@@ -502,12 +458,13 @@
       </div>
 
       <!-- Sensitivity Slider -->
-      <div class="card slider-card">
+      <div class="card slider-card mp-only secondary-metric">
         <label class="slider-label" for="sensitivitySlider">
           Alert Sensitivity
           <span id="sensitivityVal">Medium</span>
         </label>
-        <input type="range" id="sensitivitySlider" min="1" max="3" step="1" value="2" class="slider" oninput="updateSensitivity(this.value)"/>
+        <input type="range" id="sensitivitySlider" min="1" max="3" step="1" value="2" class="slider"
+          oninput="updateSensitivity(this.value)" />
         <div class="slider-ticks">
           <span>Low</span>
           <span>Medium</span>
@@ -520,9 +477,11 @@
 
   <!-- Info Footer -->
   <footer class="footer">
-    <p>Camera frames are processed in your browser and are not uploaded. Research prototype only—not for use while driving.</p>
+    <p>Camera frames are processed in your browser and are not uploaded. Research prototype only—not for use while
+      driving.</p>
   </footer>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
+
 </html>
