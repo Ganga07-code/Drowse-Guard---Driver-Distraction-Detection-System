@@ -1,47 +1,71 @@
-<div align="center">
-
 # 😴 DrowseGuard
 
-### A browser-based drowsiness-monitoring research prototype
-
-Monitor eye closure and gaze cues with your webcam, with live session metrics and alerts.
-
-</div>
-
-🌐 **Live demo:** [Open DrowseGuard](https://drowse-guard-app.vercel.app/)
+**A browser-based driver-monitoring research prototype** for exploring eye closure, blinks, and frontal-face alignment.
 
 > [!WARNING]
-> **Research prototype only.** DrowseGuard is not a certified safety system and cannot diagnose drowsiness. **Never use it while driving or to make driving decisions.** Its thresholds and alert timings are heuristics, not clinically or experimentally validated values.
+> Research use only—not a certified safety system or medical device. Never use DrowseGuard while driving or to make driving decisions. Its measurements and alerts are experimental.
 
-## ✨ What it does
+## ✨ What you can test
 
-DrowseGuard provides MediaPipe landmark tracking and optional YOLO ONNX inference. YOLO can run an object detector or one of the experimental full-frame eye-state classifiers; MediaPipe is not loaded in YOLO modes.
+- **MediaPipe:** eye aspect ratio (EAR), blink transitions, long closures, mouth opening, and face alignment.
+- **YOLO ONNX:** run an object detector or display a full-frame classifier prediction.
+- **Live telemetry:** inference time, pipeline FPS, face-tracking coverage, and session CSV logs.
+- **Private by design:** camera frames and locally selected ONNX files are processed in the browser, not uploaded by the app.
 
-- 👁️ Eye Aspect Ratio (EAR), blink counts, and long eye closures
-- 📊 Rolling 60-second PERCLOS and face-tracking coverage
-- ⚡ Pipeline FPS and MediaPipe inference time
-- 🚨 A clean alert dialog for prolonged eye closure, sustained gaze away, loss of face tracking, and sustained mouth opening
-- 🧭 Head and feature alignment checks using facial landmarks, with a 70% visibility threshold
-- 🔔 Distinct alert tones and spoken prompts such as “Please open your eyes” and “Please look straight ahead”
-- 📁 CSV export of session samples and alerts
+## 🚀 Start the app
 
-Voice prompts are enabled by default. Voice alerts, their volume, sensitivity, and the EAR threshold can be adjusted in the app settings. Session logs are held in memory and cleared when the page reloads.
+From the project root, run:
 
-To use YOLO inference, choose YOLOv8 or YOLO11, select the model task, and load a compatible ONNX file. Models run locally in the browser with ONNX Runtime Web; the selected file is not uploaded and is cleared when the page reloads. For object detection, enter labels and alert class IDs that match the model. The general-purpose `yolov8n` and `yolo11n` COCO weights are not trained to detect drowsiness.
+```powershell
+python -m http.server 8000
+```
 
-The app also supports a **batch-1, float32, RGB, 224×224 classification model**. The experimental classifiers trained by this project distinguish `Closed`, `Drowsy-Microsleep`, and `Open` using the entire frame; they do not detect eye regions or gaze-away. In the model controls, choose **Eye-state classification**, load the exported classifier, enter labels in order as `Closed,Drowsy-Microsleep,Open`, and enter alert class IDs `0,1`. Alerts are triggered after the configured eye-state remains predicted for the selected sensitivity duration. Blink counts are approximate open/closed transitions, not independently validated blink detections. No classifier-based gaze, yawning, or face-presence alert is supported.
+Open [http://localhost:8000](http://localhost:8000), allow camera access, choose a mode, then select **Start Detection**. Use `Ctrl+C` in the server terminal to stop it. A local server is recommended instead of opening `index.html` directly.
 
-The existing object-detection adapter expects a **batch-1, float32, RGB, 640×640 model** with raw YOLO detection output or end-to-end NMS output. It does not decode custom face-keypoint heads; the existing MediaPipe model supplies those landmarks. For example, export a compatible detector from a Python environment with Ultralytics installed:
+MediaPipe assets and ONNX Runtime Web are loaded from CDNs, so an internet connection is required. No package install or build step is needed.
+
+## 🧠 Choose a model
+
+| Mode | What it does | Alert source |
+| --- | --- | --- |
+| MediaPipe | Tracks face landmarks and eye/mouth metrics | EAR, face alignment, and mouth measurements |
+| YOLO frame classification + MediaPipe | Displays a YOLO class prediction while MediaPipe measures eyes and face alignment | MediaPipe only; the YOLO class does not trigger alerts |
+| YOLO object detection | Detects the classes supported by the selected model | Only configured detector class IDs |
+
+### 🏷️ Configure a classifier
+
+1. Select **YOLOv8** or **YOLO11** and choose **Frame classification + MediaPipe landmarks**.
+2. Load a compatible batch-1, float32, RGB, 224×224 ONNX classifier.
+3. Enter every class label in the model's exact output order, separated by commas.
+4. Leave **Alert class IDs** blank and keep the confidence threshold at its default; both are for object detection.
+
+For the included eye-state classifiers, the label order is `Closed,Drowsy-Microsleep,Open`. These are small, experimental full-frame models—not eye detectors. In classifier mode, MediaPipe EAR drives eye-closure and blink measurements. The app estimates frontal-face alignment from landmark symmetry; below 70% for about 1.2 seconds triggers an alert. This score is not a literal percentage of visible face pixels.
+
+The DMD gaze-zone classifiers use this class order:
+
+```text
+center_mirror,front,front_right,infotainment,left,left_mirror,right,right_mirror,steering_wheel
+```
+
+They display an experimental YOLO prediction but do not trigger gaze alerts. Gaze alerts come from MediaPipe face alignment.
+
+### 🎯 Configure an object detector
+
+Use a batch-1, float32, RGB, 640×640 ONNX model with raw YOLO detection output or end-to-end NMS output. Enter its labels in model order and the **zero-based** IDs that should trigger alerts. The confidence threshold applies only to detections. The standard COCO `yolov8n` and `yolo11n` models are not trained to detect eye closure or drowsiness.
+
+For a compatible Ultralytics export:
 
 ```powershell
 yolo export model=best.pt format=onnx imgsz=640 batch=1 dynamic=False half=False
 ```
 
-Use the resulting `.onnx` file in the corresponding model picker. Check that the exported model's classes and order match the labels and drowsy class IDs configured in the app. A successful export alone does not validate drowsiness accuracy; evaluate models against independently labeled data before drawing conclusions.
+A successful export does not establish accuracy; validate with independently labeled data.
 
-### Experimental eye-state classifier training
+## 🏋️ Train the included experiments
 
-The included training script creates a sequence-level train/validation split (holding out `driver_no_sleep.json` by default), trains both YOLOv8n-cls and YOLO11n-cls on CPU, and exports ONNX files. Install Ultralytics in the Python environment, then run from the project root:
+Run commands from the project root with Ultralytics installed in `.venv`.
+
+### 👁️ Eye-state classifiers
 
 ```powershell
 .\.venv\Scripts\python.exe .\train_eye_state_classifiers.py `
@@ -49,71 +73,40 @@ The included training script creates a sequence-level train/validation split (ho
   --epochs 30
 ```
 
-The dataset is included under `datasets\simuletic-dms`; pass `--dataset` to use another extracted copy. The exported models are `trained_models\yolov8n-eye-state\weights\best.onnx` and `trained_models\yolo11n-eye-state\weights\best.onnx`. Choose each file in its matching model panel and configure it for eye-state classification. In this run, both models recorded 75.86% top-1 on 29 held-out frames, of which only one was labeled `Closed`; this imbalanced, tiny validation set cannot establish accuracy. Treat this only as a software integration experiment, not evidence of accuracy or readiness for real-world use. The labels include only on-road gaze while eyes are open and do not support gaze-away training.
+Outputs:
 
-The sample is the **[Simuletic Driver Drowsiness Detection Dataset (Synthetic)](https://www.kaggle.com/datasets/simuletic/driver-drowsiness-detection-monitoring-dataset)** and is labeled **CC BY-NC-SA 4.0**. This project copy includes the 168 JPG frames and six annotation JSONs; it omits the source videos. See `datasets\simuletic-dms\ATTRIBUTION.txt`. Attribute Simuletic and retain the non-commercial/share-alike terms for dataset adaptations and model derivatives. The training script also initializes from Ultralytics pretrained classifier weights; review the applicable upstream terms before redistribution. Do not treat the resulting weights as cleared for commercial use.
+- `trained_models\yolov8n-eye-state\weights\best.onnx`
+- `trained_models\yolo11n-eye-state\weights\best.onnx`
 
-Detection is scheduled against new webcam frames where the browser supports video-frame callbacks, and the sparkline redraw is limited to 10 updates per second to reduce unnecessary work.
+The sample is the [Simuletic Driver Drowsiness Detection Dataset (Synthetic)](https://www.kaggle.com/datasets/simuletic/driver-drowsiness-detection-monitoring-dataset), licensed **CC BY-NC-SA 4.0**. The project copy contains 168 JPG frames and six annotation JSONs under `datasets\simuletic-dms`; see its `ATTRIBUTION.txt`. The recorded validation was only 75.86% top-1 on 29 frames, with one `Closed` example. This tiny, imbalanced split is not evidence of real-world accuracy. Review the dataset and Ultralytics terms before distributing data or model weights.
 
-## 🔒 Privacy & requirements
-
-- Camera access is requested only after you start detection.
-- Camera frames are processed in the browser and are not uploaded by the app.
-- MediaPipe, ONNX Runtime Web, and their runtime/model assets require an internet connection. YOLO ONNX weights are selected locally and processed in the browser.
-- Session telemetry describes app operation, not detection accuracy. Accuracy requires independently labeled test sessions.
-
-## 🚀 Run locally
-
-No package installation or build step is required. From the project root, start a local static server:
+### 🧭 DMD gaze-zone classifiers
 
 ```powershell
-python -m http.server 8000
+.\.venv\Scripts\python.exe .\train_dmd_gaze_classifiers.py `
+  --dataset .\dmd `
+  --output .\trained_models `
+  --epochs 50
 ```
 
-Then open **http://localhost:8000**, allow camera access, and select **Start Detection**. A local server is preferred to opening `index.html` directly because camera access generally requires `localhost` or HTTPS. Stop the server with `Ctrl+C`.
+Outputs are saved under `trained_models\yolov8n-gaze-zones` and `trained_models\yolo11n-gaze-zones`. This experimental training path currently expects one annotated recording; its temporal validation is not an independent-driver test. The script reads the original `dmd` files in place. Check dataset and Ultralytics terms before redistributing data or weights.
 
-Check JavaScript syntax with Node.js:
+## ⚡ Performance and privacy
+
+YOLO inference uses the ONNX Runtime WebAssembly worker proxy, and the hybrid classifier path overlaps YOLO inference with MediaPipe landmark processing. This reduces main-thread work, but achievable FPS still depends on the browser, device, model, and camera. Session logs stay in memory until reload and can be exported as CSV. Telemetry measures app operation—not model accuracy.
+
+## 🗂️ Project files
+
+| File/folder | Purpose |
+| --- | --- |
+| `index.html`, `style.css`, `app.js` | Dashboard, styling, detection, metrics, and alerts |
+| `train_eye_state_classifiers.py` | Eye-state training and ONNX export |
+| `train_dmd_gaze_classifiers.py` | DMD gaze-zone training and ONNX export |
+| `datasets\simuletic-dms` | Licensed eye-state sample and attribution |
+| `dmd` | DMD gaze training data |
+
+Check JavaScript syntax with:
 
 ```powershell
 node --check app.js
 ```
-
-## 🗂️ Project structure
-
-```text
-Drowse-Guard-main/
-|-- .github/
-|   `-- workflows/
-|       `-- deploy-pages.yml
-|-- app.js
-|-- index.html
-|-- README.md
-|-- style.css
-|-- datasets/
-|   `-- simuletic-dms/   # Licensed sample images and eye-state annotations
-|-- train_eye_state_classifiers.py
-|-- vercel.json
-`-- Drowse-Guard-main/     # Duplicate project copy; not required to run the root app
-```
-
-### Main files
-
-| File | Purpose |
-| --- | --- |
-| `index.html` | Dashboard, controls, metric displays, and alert overlay |
-| `style.css` | Dashboard layout, appearance, and responsive styles |
-| `app.js` | MediaPipe loading, webcam handling, landmark processing, metrics, alerts, and CSV export |
-| `train_eye_state_classifiers.py` | Sequence-split training and ONNX export for experimental eye-state classifiers |
-| `vercel.json` | Clean URL and trailing-slash configuration for static deployment on Vercel |
-| `.github/workflows/deploy-pages.yml` | GitHub Actions workflow for deployment |
-
-The root `index.html` loads the root `app.js` and `style.css`. The nested `Drowse-Guard-main/` directory is a duplicate project copy and is not needed to run the root app.
-
-## 🔭 Future work
-
-- Calibrate gaze and eye-closure thresholds for individual users and camera positions, then evaluate whether calibration improves reliability.
-- Evaluate detection on consented, labeled data across varied lighting, camera angles, and eyewear.
-- Report precision, recall, false-alert rate, missed-event rate, and detection delay rather than treating live telemetry as accuracy.
-- Add focused automated tests for landmark processing, alert timing, and reset behavior.
-- Evaluate compatible YOLO ONNX models with a documented, repeatable protocol and suitable labeled data; add model-specific keypoint decoding only when a supported facial-landmark model is available.
-Any data collection involving people should follow applicable consent and ethics requirements, minimize identifiable data, and document retention and deletion practices. Do not collect data on public roads or by inducing sleep deprivation.

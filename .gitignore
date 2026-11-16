@@ -8,3 +8,8 @@ __pycache__/
 *.crdownload
 .DS_Store
 Thumbs.db
+
+# DMD participant footage and derived gaze models are not redistributed here.
+/dmd/
+/trained_models/yolov8n-gaze-zones/
+/trained_models/yolo11n-gaze-zones/

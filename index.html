@@ -12,7 +12,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 
 <body>
@@ -151,23 +151,23 @@
           <option value="yolo11">YOLO11 ONNX</option>
         </select>
         <p class="evaluation-note" id="modelNote">MediaPipe measures eye closure, blinks, and gaze.</p>
-        <p class="prototype-notice" id="prototypeNotice" role="note">YOLO detects only classes in its model. Use MediaPipe for eye, blink, and gaze alerts.</p>
+        <p class="prototype-notice" id="prototypeNotice" role="note">MediaPipe measures eye closure, blinks, and frontal face alignment. YOLO predictions are experimental.</p>
         <div class="yolo-model-settings hidden" id="yoloModelSettings">
           <fieldset class="yolo-model-config" id="yolov8Config">
             <legend>YOLOv8 model</legend>
             <label for="yolov8Task">Model task</label>
             <select id="yolov8Task" onchange="updateSelectedModel('yolov8')">
               <option value="detection">Object detection</option>
-              <option value="classification">Eye-state classification</option>
+              <option value="classification">Frame classification + MediaPipe landmarks</option>
             </select>
             <label for="yolov8File">ONNX weights</label>
             <input id="yolov8File" type="file" accept=".onnx,application/onnx" onchange="handleYoloModelFile('yolov8', this)">
             <p class="model-file-status" id="yolov8FileStatus">No model selected</p>
             <label for="yolov8Labels">Class labels (model order; comma-separated)</label>
             <input id="yolov8Labels" type="text" placeholder="Closed,Drowsy-Microsleep,Open">
-            <label for="yolov8DrowsyClasses">Alert class IDs (comma-separated)</label>
+            <label for="yolov8DrowsyClasses">Alert class IDs (detectors only)</label>
             <input id="yolov8DrowsyClasses" type="text" placeholder="0,1">
-            <label for="yolov8Confidence">Score threshold</label>
+            <label for="yolov8Confidence">Confidence threshold (detectors only)</label>
             <input id="yolov8Confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.25">
           </fieldset>
           <fieldset class="yolo-model-config hidden" id="yolo11Config">
@@ -175,19 +175,19 @@
             <label for="yolo11Task">Model task</label>
             <select id="yolo11Task" onchange="updateSelectedModel('yolo11')">
               <option value="detection">Object detection</option>
-              <option value="classification">Eye-state classification</option>
+              <option value="classification">Frame classification + MediaPipe landmarks</option>
             </select>
             <label for="yolo11File">ONNX weights</label>
             <input id="yolo11File" type="file" accept=".onnx,application/onnx" onchange="handleYoloModelFile('yolo11', this)">
             <p class="model-file-status" id="yolo11FileStatus">No model selected</p>
             <label for="yolo11Labels">Class labels (model order; comma-separated)</label>
             <input id="yolo11Labels" type="text" placeholder="Closed,Drowsy-Microsleep,Open">
-            <label for="yolo11DrowsyClasses">Alert class IDs (comma-separated)</label>
+            <label for="yolo11DrowsyClasses">Alert class IDs (detectors only)</label>
             <input id="yolo11DrowsyClasses" type="text" placeholder="0,1">
-            <label for="yolo11Confidence">Score threshold</label>
+            <label for="yolo11Confidence">Confidence threshold (detectors only)</label>
             <input id="yolo11Confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.25">
           </fieldset>
-          <p class="model-file-help">For the research classifiers, choose Eye-state classification, enter labels as Closed,Drowsy-Microsleep,Open and alert IDs as 0,1. These full-frame models do not detect gaze-away or locate eyes.</p>
+          <p class="model-file-help">Classifier predictions are experimental and do not drive eye-closure alerts. MediaPipe landmarks provide eye closure, blink, and frontal-face alignment metrics in classifier mode. Alert class IDs and confidence thresholds apply only to object detection.</p>
         </div>
       </div>
     </section>
@@ -232,7 +232,7 @@
           </svg>
         </div>
         <div class="metric-info">
-          <span class="metric-label" id="gazeMetricLabel">Gaze Alignment (%)</span>
+          <span class="metric-label" id="gazeMetricLabel">Frontal Face Alignment (%)</span>
           <span class="metric-value" id="gazeAlignmentValue">—</span>
         </div>
         <div class="metric-bar-container gaze-bar-container">
@@ -481,7 +481,7 @@
       driving.</p>
   </footer>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 
 </html>

@@ -1020,8 +1020,7 @@ body.theme-yolo11 .model-badge-tag {
   grid-column: auto;
 }
 
-body.yolo-only-mode:not(.yolo-classifier-mode) .mp-only,
-body.yolo-classifier-mode .mp-only:not(.classifier-metric) {
+body.yolo-only-mode:not(.yolo-classifier-mode) .mp-only {
   display: none !important;
 }
 
