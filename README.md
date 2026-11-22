@@ -8,7 +8,7 @@
 ## ✨ What you can test
 
 - **MediaPipe:** eye aspect ratio (EAR), blink transitions, long closures, mouth opening, and face alignment.
-- **YOLO ONNX:** run an object detector or display a full-frame classifier prediction.
+- **YOLOv8 / YOLO11 ONNX classifiers:** display a full-frame class prediction alongside MediaPipe landmark monitoring.
 - **Live telemetry:** inference time, pipeline FPS, face-tracking coverage, and session CSV logs.
 - **Private by design:** camera frames and locally selected ONNX files are processed in the browser, not uploaded by the app.
 
@@ -30,18 +30,25 @@ MediaPipe assets and ONNX Runtime Web are loaded from CDNs, so an internet conne
 | --- | --- | --- |
 | MediaPipe | Tracks face landmarks and eye/mouth metrics | EAR, face alignment, and mouth measurements |
 | YOLO frame classification + MediaPipe | Displays a YOLO class prediction while MediaPipe measures eyes and face alignment | MediaPipe only; the YOLO class does not trigger alerts |
-| YOLO object detection | Detects the classes supported by the selected model | Only configured detector class IDs |
+
+### Load the YOLOv8 and YOLO11 classifiers
+
+The app supports one YOLO classifier at a time. The included eye-state ONNX weights are:
+
+```text
+trained_models\yolov8n-eye-state\weights\best.onnx
+trained_models\yolo11n-eye-state\weights\best.onnx
+```
+
+To load either model, select **YOLOv8 classifier + MediaPipe** or **YOLO11 classifier + MediaPipe** in the inference-mode selector, browse to the matching `best.onnx` file, enter its labels in the model's output order, then select **Start Detection**. For the included eye-state classifiers, use `Closed,Drowsy-Microsleep,Open`. Switch models by stopping detection, selecting the other runtime, loading its ONNX file, and starting again.
 
 ### 🏷️ Configure a classifier
 
-1. Select **YOLOv8** or **YOLO11** and choose **Frame classification + MediaPipe landmarks**.
-2. Load a compatible batch-1, float32, RGB, 224×224 ONNX classifier.
-3. Enter every class label in the model's exact output order, separated by commas.
-4. Leave **Alert class IDs** blank and keep the confidence threshold at its default; both are for object detection.
+The browser accepts `.onnx` files, not `.pt` files. Selected files remain available while the page is open; after a page reload, select the model file again. The classifier input is a center-cropped, RGB, batch-1 224×224 frame normalized to the 0–1 range. Configure the exact class labels in output order, separated by commas.
 
-For the included eye-state classifiers, the label order is `Closed,Drowsy-Microsleep,Open`. These are small, experimental full-frame models—not eye detectors. In classifier mode, MediaPipe EAR drives eye-closure and blink measurements. The app estimates frontal-face alignment from landmark symmetry; below 70% for about 1.2 seconds triggers an alert. This score is not a literal percentage of visible face pixels.
+The included eye-state models are small, experimental full-frame classifiers—not eye detectors. Their class predictions are displayed for reference but do not trigger alerts. MediaPipe EAR drives eye-closure and blink measurements in both MediaPipe mode and YOLO classifier + MediaPipe mode. Eye-closure alerts begin after the selected sensitivity duration (0.7, 1.0, or 1.5 seconds), repeat every 5 seconds while the eyes remain closed, and clear automatically when the eyes reopen. The app estimates frontal-face alignment from landmark symmetry; below 70% for about 1.2 seconds triggers a gaze alert. It repeats every 5 seconds while alignment remains below the threshold and clears automatically after alignment recovers to 70% or higher. This score is not a literal percentage of visible face pixels.
 
-The DMD gaze-zone classifiers use this class order:
+If you load a compatible gaze-zone classifier, its class labels must also match its output order. The DMD gaze-zone classifiers use:
 
 ```text
 center_mirror,front,front_right,infotainment,left,left_mirror,right,right_mirror,steering_wheel
@@ -49,17 +56,56 @@ center_mirror,front,front_right,infotainment,left,left_mirror,right,right_mirror
 
 They display an experimental YOLO prediction but do not trigger gaze alerts. Gaze alerts come from MediaPipe face alignment.
 
-### 🎯 Configure an object detector
+## 🎤 Presentation brief
 
-Use a batch-1, float32, RGB, 640×640 ONNX model with raw YOLO detection output or end-to-end NMS output. Enter its labels in model order and the **zero-based** IDs that should trigger alerts. The confidence threshold applies only to detections. The standard COCO `yolov8n` and `yolo11n` models are not trained to detect eye closure or drowsiness.
+### Project summary
 
-For a compatible Ultralytics export:
+DrowseGuard is a browser-based driver-monitoring research prototype. It processes a live camera stream locally and demonstrates face/eye monitoring with MediaPipe and optional YOLO ONNX models. It is an educational prototype, not a validated driver-safety system.
 
-```powershell
-yolo export model=best.pt format=onnx imgsz=640 batch=1 dynamic=False half=False
-```
+### Processing flow
 
-A successful export does not establish accuracy; validate with independently labeled data.
+1. The browser requests camera permission and displays a horizontally mirrored preview.
+2. The selected runtime processes up to 15 frames per second for MediaPipe or 10 frames per second for YOLO inference.
+3. MediaPipe derives face landmarks and, when enabled, eye aspect ratio (EAR), mouth measurements, and a face-alignment estimate.
+4. In hybrid mode, YOLO ONNX classifies the full frame while MediaPipe—not the YOLO class prediction—drives eye-closure, blink, and face-alignment metrics and alerts.
+5. The dashboard updates metrics and records session samples and alert events in memory; logs can be exported as CSV.
+
+### Model comparison
+
+| Runtime | Mode in this project | What it reports | Alert behavior |
+| --- | --- | --- | --- |
+| MediaPipe Face Landmarker | Landmark monitoring | Face landmarks, EAR/blinks, mouth measurements, face alignment | MediaPipe thresholds |
+| YOLOv8 ONNX + MediaPipe | Full-frame classifier + landmarks | Class score, inference time, pipeline FPS, MediaPipe metrics | MediaPipe thresholds |
+| YOLO11 ONNX + MediaPipe | Full-frame classifier + landmarks | Class score, inference time, pipeline FPS, MediaPipe metrics | MediaPipe thresholds |
+
+The YOLO class score is experimental and is not used to trigger alerts. These modes are not a like-for-like accuracy comparison because all alerting relies on MediaPipe landmark measurements.
+
+### Suggested slide outline
+
+1. **Problem and motivation:** demonstrate how prolonged eye closure or loss of face alignment can be monitored; do not present this prototype as a real driving aid.
+2. **Project objective:** show local, browser-based experimentation with camera input, MediaPipe landmarks, and optional YOLO ONNX inference.
+3. **System architecture:** camera → frame processing → selected model/runtime → dashboard metrics and configured alerts.
+4. **Models and features:** explain MediaPipe, YOLOv8 + MediaPipe, and YOLO11 + MediaPipe. Emphasize that the YOLO classifiers report class scores while MediaPipe drives alerts.
+5. **Demo and measurements:** show a controlled test, live inference/FPS telemetry, alert behavior, and exported CSV.
+6. **Results, limitations, and next steps:** report only measured results; discuss dataset size, class balance, device dependence, and the need for independent validation.
+
+### Accuracy evidence and limitations
+
+The included eye-state classifier experiment recorded 75.86% top-1 validation accuracy on only 29 frames, including just one `Closed` example. This small, imbalanced split is not reliable evidence of real-world accuracy or generalization. Do not describe the models as highly accurate without a stronger, independently labeled evaluation. MediaPipe alignment is a landmark-symmetry estimate, not a clinical or calibrated gaze measurement.
+
+## ⏱️ Alert reaction-time benchmark
+
+### Results status
+
+No controlled, end-to-end alert reaction-time results have been recorded for the three modes in this repository. Do not report estimated reaction times as measurements or substitute a configured alert threshold or model inference duration. YOLO class scores do not trigger alerts; the alert reaction time in either hybrid mode reflects MediaPipe monitoring.
+
+### How to measure and report it
+
+1. Define one event and its exact onset—for example, the first frame of a scripted eye closure in a recording with a known timestamp.
+2. Test the same recording, camera/device, browser, resolution, lighting, and alert settings for every model. Load and warm up each model before timing.
+3. Record the event-onset timestamp and the timestamp when the app first displays/sounds the corresponding alert. Calculate `reaction time (ms) = alert time − event-onset time`.
+4. Repeat each test at least 10 times. Report the median and range, plus the test device, browser, model file, mode, sensitivity, input, and number of trials.
+5. Report **model inference time** and **end-to-end reaction time** separately. The app's CSV telemetry provides inference-time/FPS samples and alert-event logs, but it does not supply ground-truth event-onset timestamps; those must come from the labeled recording or a synchronized test marker.
 
 ## 🏋️ Train the included experiments
 
@@ -93,7 +139,7 @@ Outputs are saved under `trained_models\yolov8n-gaze-zones` and `trained_models\
 
 ## ⚡ Performance and privacy
 
-YOLO inference uses the ONNX Runtime WebAssembly worker proxy, and the hybrid classifier path overlaps YOLO inference with MediaPipe landmark processing. This reduces main-thread work, but achievable FPS still depends on the browser, device, model, and camera. Session logs stay in memory until reload and can be exported as CSV. Telemetry measures app operation—not model accuracy.
+To reduce sustained CPU load, inference is capped at 15 FPS for MediaPipe and 10 FPS for YOLO modes; displayed camera video remains at the camera's native frame rate. YOLO inference uses the ONNX Runtime WebAssembly worker proxy, and the hybrid classifier path overlaps YOLO inference with MediaPipe landmark processing. Actual inference FPS still depends on the browser, device, model, and camera. Session logs stay in memory until reload and can be exported as CSV. Telemetry measures app operation—not model accuracy.
 
 ## 🗂️ Project files
 

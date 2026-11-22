@@ -6,13 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DrowseGuard – Eye-Closure Research Prototype</title>
   <meta name="description"
-    content="Browser-based drowsiness-monitoring research prototype with MediaPipe landmarks and optional YOLO ONNX detection." />
+    content="Browser-based drowsiness-monitoring research prototype with MediaPipe landmarks and optional YOLO ONNX classification." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 
 <body>
@@ -147,47 +147,29 @@
         </div>
         <select id="modelSelect" class="model-select" onchange="updateSelectedModel(this.value)">
           <option value="mediapipe" selected>MediaPipe / Face API (Default Theme · Baseline)</option>
-          <option value="yolov8">YOLOv8 ONNX</option>
-          <option value="yolo11">YOLO11 ONNX</option>
+          <option value="yolov8">YOLOv8 classifier + MediaPipe</option>
+          <option value="yolo11">YOLO11 classifier + MediaPipe</option>
         </select>
         <p class="evaluation-note" id="modelNote">MediaPipe measures eye closure, blinks, and gaze.</p>
         <p class="prototype-notice" id="prototypeNotice" role="note">MediaPipe measures eye closure, blinks, and frontal face alignment. YOLO predictions are experimental.</p>
         <div class="yolo-model-settings hidden" id="yoloModelSettings">
           <fieldset class="yolo-model-config" id="yolov8Config">
-            <legend>YOLOv8 model</legend>
-            <label for="yolov8Task">Model task</label>
-            <select id="yolov8Task" onchange="updateSelectedModel('yolov8')">
-              <option value="detection">Object detection</option>
-              <option value="classification">Frame classification + MediaPipe landmarks</option>
-            </select>
-            <label for="yolov8File">ONNX weights</label>
+            <legend>YOLOv8 frame classifier</legend>
+            <label for="yolov8File">Classifier ONNX weights</label>
             <input id="yolov8File" type="file" accept=".onnx,application/onnx" onchange="handleYoloModelFile('yolov8', this)">
             <p class="model-file-status" id="yolov8FileStatus">No model selected</p>
-            <label for="yolov8Labels">Class labels (model order; comma-separated)</label>
+            <label for="yolov8Labels">Classifier labels in output order</label>
             <input id="yolov8Labels" type="text" placeholder="Closed,Drowsy-Microsleep,Open">
-            <label for="yolov8DrowsyClasses">Alert class IDs (detectors only)</label>
-            <input id="yolov8DrowsyClasses" type="text" placeholder="0,1">
-            <label for="yolov8Confidence">Confidence threshold (detectors only)</label>
-            <input id="yolov8Confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.25">
           </fieldset>
           <fieldset class="yolo-model-config hidden" id="yolo11Config">
-            <legend>YOLO11 model</legend>
-            <label for="yolo11Task">Model task</label>
-            <select id="yolo11Task" onchange="updateSelectedModel('yolo11')">
-              <option value="detection">Object detection</option>
-              <option value="classification">Frame classification + MediaPipe landmarks</option>
-            </select>
-            <label for="yolo11File">ONNX weights</label>
+            <legend>YOLO11 frame classifier</legend>
+            <label for="yolo11File">Classifier ONNX weights</label>
             <input id="yolo11File" type="file" accept=".onnx,application/onnx" onchange="handleYoloModelFile('yolo11', this)">
             <p class="model-file-status" id="yolo11FileStatus">No model selected</p>
-            <label for="yolo11Labels">Class labels (model order; comma-separated)</label>
+            <label for="yolo11Labels">Classifier labels in output order</label>
             <input id="yolo11Labels" type="text" placeholder="Closed,Drowsy-Microsleep,Open">
-            <label for="yolo11DrowsyClasses">Alert class IDs (detectors only)</label>
-            <input id="yolo11DrowsyClasses" type="text" placeholder="0,1">
-            <label for="yolo11Confidence">Confidence threshold (detectors only)</label>
-            <input id="yolo11Confidence" type="number" min="0.01" max="0.99" step="0.01" value="0.25">
           </fieldset>
-          <p class="model-file-help">Classifier predictions are experimental and do not drive eye-closure alerts. MediaPipe landmarks provide eye closure, blink, and frontal-face alignment metrics in classifier mode. Alert class IDs and confidence thresholds apply only to object detection.</p>
+          <p class="model-file-help">YOLO frame-classifier predictions are experimental and do not trigger alerts. MediaPipe landmarks provide eye-closure, blink, yawn, and face-alignment metrics and alerts.</p>
         </div>
       </div>
     </section>
@@ -418,8 +400,8 @@
           <span class="session-value" id="headAlignmentValue">—</span>
         </div>
         <div class="session-item">
-          <span class="session-label" id="yoloScoreMetricLabel">YOLO detection confidence</span>
-          <span class="session-value" id="yoloConfValue" title="Confidence from the selected YOLO ONNX model">—</span>
+          <span class="session-label" id="yoloScoreMetricLabel">YOLO classifier score</span>
+          <span class="session-value" id="yoloConfValue" title="Class score from the selected YOLO ONNX model">—</span>
         </div>
         <div class="session-item mp-only">
           <span class="session-label">Threshold (EAR)</span>
@@ -481,7 +463,7 @@
       driving.</p>
   </footer>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=9"></script>
 </body>
 
 </html>

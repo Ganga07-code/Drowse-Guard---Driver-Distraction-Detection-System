@@ -8,9 +8,11 @@ const MEDIAPIPE_CDN       = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-visio
 const MEDIAPIPE_MODEL_URL  = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const ONNX_RUNTIME_VERSION = '1.20.1';
 const ONNX_RUNTIME_CDN     = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ONNX_RUNTIME_VERSION}/dist/`;
-const YOLO_INPUT_SIZE      = 640;
+const MAX_INFERENCE_FPS    = 15;
+const YOLO_MAX_INFERENCE_FPS = 10;
 const PERCLOS_WINDOW_MS    = 60_000;
 const LOG_INTERVAL_MS      = 250;
+const ALERT_REPEAT_INTERVAL_MS = 5_000;
 const NO_FACE_ALERT_MS     = 15_000;
 const GAZE_AWAY_ALERT_MS   = 1_200;
 
@@ -26,6 +28,7 @@ let isRunning        = false;
 let animFrameId      = null;
 let videoFrameCallbackId = null;
 let lastVideoTime    = -1;
+let lastInferenceFrameAt = 0;
 let lastSparklineUpdate = 0;
 let stream           = null;
 let sessionStart     = null;
@@ -35,6 +38,7 @@ let closedFrames     = 0;
 let blinkCount       = 0;
 let longClosureCount = 0;
 let alertCount       = 0;
+let activeAlertType  = null;
 let eyeClosedStart   = null;
 let wasEyeClosed     = false;
 let drowsinessScore  = 0;           // 0–100
@@ -70,10 +74,8 @@ let yoloModels = {
   yolov8: { file: null, session: null },
   yolo11: { file: null, session: null }
 };
-let yoloDetections = [];
 let yoloClassification = null;
 let yoloInferenceMs = 0;
-let yoloTargetAlerted = false;
 let yoloInputCanvas = null;
 let yoloInputContext = null;
 let perclosSamples   = [];
@@ -84,6 +86,7 @@ let evaluation = { frames: 0, faceFrames: 0, earTotal: 0 };
 let logs             = [];
 let earHistory       = [];
 let voiceSettings    = { enabled: true, volume: 0.8 };
+let alertAudioContext = null;
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
 
@@ -173,15 +176,28 @@ function updateClosureMetrics(closed) {
   return currentDuration * 1000;
 }
 
+function updateEyeClosureAlert(now) {
+  if (now - lastAlertTime < ALERT_REPEAT_INTERVAL_MS) return;
+  triggerAlert({
+    message: 'Please open your eyes.',
+    voiceText: 'Please open your eyes.',
+    alertType: 'closure',
+    soundType: 'closure'
+  });
+}
+
+function clearEyeClosureAlert() {
+  if (activeAlertType !== 'closure') return;
+  document.getElementById('alertOverlay').classList.add('hidden');
+  document.getElementById('dismissAlert').classList.remove('hidden');
+  activeAlertType = null;
+  stopVoice();
+}
+
 function updateSelectedModel(value) {
   if (isRunning) return;
   selectedModel = value || document.getElementById('modelSelect').value;
   if (selectedModel === 'yolo8') selectedModel = 'yolov8';
-  const task = selectedModel === 'yolov8' || selectedModel === 'yolo11'
-    ? document.getElementById(`${selectedModel}Task`).value
-    : 'detection';
-  const isClassifier = task === 'classification';
-
   document.body.classList.remove('yolo-theme', 'theme-yolo8', 'theme-yolo11');
   const badgeTag = document.getElementById('modelBadgeTag');
   const modelNote = document.getElementById('modelNote');
@@ -189,9 +205,6 @@ function updateSelectedModel(value) {
   const yolo8Config = document.getElementById('yolov8Config');
   const yolo11Config = document.getElementById('yolo11Config');
   const isYoloMode = selectedModel === 'yolov8' || selectedModel === 'yolo11';
-  const usesLandmarkMetrics = !isYoloMode || isClassifier;
-  document.body.classList.toggle('yolo-only-mode', isYoloMode);
-  document.body.classList.toggle('yolo-classifier-mode', isClassifier);
   if (yoloSettings) yoloSettings.classList.toggle('hidden', !isYoloMode);
   if (yolo8Config) yolo8Config.classList.toggle('hidden', selectedModel !== 'yolov8');
   if (yolo11Config) yolo11Config.classList.toggle('hidden', selectedModel !== 'yolo11');
@@ -201,24 +214,16 @@ function updateSelectedModel(value) {
     document.body.classList.add('yolo-theme', 'theme-yolo8');
     const loaded = Boolean(yoloModels.yolov8.file);
     if (badgeTag) { badgeTag.textContent = loaded ? 'ONNX selected' : 'Add ONNX model'; badgeTag.style.color = '#fb923c'; }
-      if (modelNote) modelNote.textContent = loaded
-      ? isClassifier
-        ? 'YOLOv8 classifies the frame for comparison; MediaPipe measures eye closure, blinks, and frontal face alignment.'
-        : 'YOLOv8 detects its configured classes. Eye, blink, and gaze metrics are unavailable in this mode.'
-      : isClassifier
-        ? 'Select a YOLOv8 classifier ONNX file below. MediaPipe landmarks will also be loaded for eye and face measurements.'
-        : 'Select a compatible YOLOv8 ONNX model below.';
+    if (modelNote) modelNote.textContent = loaded
+      ? 'YOLOv8 predicts a full-frame class; MediaPipe provides eye, blink, mouth, and face-alignment metrics and alerts.'
+      : 'Select a trained YOLOv8 classifier ONNX file. MediaPipe landmarks will also be loaded.';
   } else if (selectedModel === 'yolo11') {
     document.body.classList.add('yolo-theme', 'theme-yolo11');
     const loaded = Boolean(yoloModels.yolo11.file);
     if (badgeTag) { badgeTag.textContent = loaded ? 'ONNX selected' : 'Add ONNX model'; badgeTag.style.color = '#00f2fe'; }
     if (modelNote) modelNote.textContent = loaded
-    ? isClassifier
-      ? 'YOLO11 classifies the frame for comparison; MediaPipe measures eye closure, blinks, and frontal face alignment.'
-      : 'YOLO11 detects its configured classes. Eye, blink, and gaze metrics are unavailable in this mode.'
-    : isClassifier
-      ? 'Select a YOLO11 classifier ONNX file below. MediaPipe landmarks will also be loaded for eye and face measurements.'
-      : 'Select a compatible YOLO11 ONNX model below.';
+      ? 'YOLO11 predicts a full-frame class; MediaPipe provides eye, blink, mouth, and face-alignment metrics and alerts.'
+      : 'Select a trained YOLO11 classifier ONNX file. MediaPipe landmarks will also be loaded.';
   } else {
     selectedModel = 'mediapipe';
     if (badgeTag) { badgeTag.textContent = 'Baseline'; badgeTag.style.color = '#60a5fa'; }
@@ -233,21 +238,15 @@ function updateSelectedModel(value) {
   });
   const mediapipeStatus = document.getElementById('benchStatus-mediapipe');
   if (mediapipeStatus) {
-    mediapipeStatus.textContent = usesLandmarkMetrics
-      ? 'Active · EAR · MAR · landmark alignment'
-      : 'Not loaded in YOLO detector mode';
+    mediapipeStatus.textContent = 'Active · EAR · MAR · landmark alignment';
   }
   const prototypeNotice = document.getElementById('prototypeNotice');
   if (prototypeNotice) {
     prototypeNotice.textContent = isYoloMode
-      ? isClassifier
-        ? 'Hybrid mode: MediaPipe measures eye closure, blinks, and frontal face alignment; YOLO full-frame predictions are experimental.'
-        : 'YOLO detects only its model classes. Use MediaPipe mode for eye, blink, and gaze alerts.'
+      ? 'Hybrid mode: MediaPipe measures eye closure, blinks, yawns, and frontal face alignment; YOLO frame-classifier predictions are experimental.'
       : 'MediaPipe provides eye, blink, mouth, and frontal face-alignment measurements.';
   }
-  document.querySelectorAll('.mp-only').forEach(element => {
-    element.classList.toggle('hidden', !usesLandmarkMetrics);
-  });
+  document.querySelectorAll('.mp-only').forEach(element => element.classList.remove('hidden'));
   const perclosLabel = document.getElementById('perclosMetricLabel');
   if (perclosLabel) perclosLabel.textContent = 'PERCLOS · rolling 60 s';
   const earLabel = document.getElementById('earMetricLabel');
@@ -255,36 +254,26 @@ function updateSelectedModel(value) {
   const blinkLabel = document.getElementById('blinkMetricLabel');
   if (blinkLabel) blinkLabel.textContent = 'Blinks (MediaPipe EAR)';
   const scoreMetricLabel = document.getElementById('yoloScoreMetricLabel');
-  if (scoreMetricLabel) scoreMetricLabel.textContent = isClassifier
-    ? 'YOLO top-class score (experimental)'
-    : 'YOLO detection confidence';
-  document.getElementById('perclosCoverage').textContent = usesLandmarkMetrics
-    ? 'Waiting for face tracking'
-    : 'Waiting for detector frames';
-  document.getElementById('earStatus').textContent = usesLandmarkMetrics
-    ? 'Waiting for face landmarks'
-    : 'Unavailable in detector mode';
+  if (scoreMetricLabel) scoreMetricLabel.textContent = 'YOLO classifier score';
+  document.getElementById('perclosCoverage').textContent = 'Waiting for face tracking';
+  document.getElementById('earStatus').textContent = 'Waiting for face landmarks';
 
   const activeModelVal = document.getElementById('activeModelValue');
   if (activeModelVal) activeModelVal.textContent = getModelLabel();
   const inferLabel = document.getElementById('inferenceMetricLabel');
   if (inferLabel) inferLabel.textContent = isYoloMode
-    ? isClassifier ? 'YOLO classifier inference time' : 'YOLO inference time'
+    ? 'YOLO classifier inference time'
     : 'MediaPipe inference time';
   const detectionsLabel = document.getElementById('faceDetectedLabel');
-  if (detectionsLabel) detectionsLabel.textContent = isYoloMode
-    ? isClassifier ? 'Face detected' : 'YOLO detections'
-    : 'Face Detected';
+  if (detectionsLabel) detectionsLabel.textContent = 'Face detected';
   const headAlignment = document.getElementById('headAlignmentValue');
-  if (headAlignment) headAlignment.textContent = usesLandmarkMetrics ? '—' : 'Unavailable';
+  if (headAlignment) headAlignment.textContent = '—';
   const gazeValue = document.getElementById('gazeAlignmentValue');
   const gazeStatus = document.getElementById('gazeAlignmentStatus');
   const gazeBar = document.getElementById('gazeAlignmentBar');
-  if (gazeValue) gazeValue.textContent = usesLandmarkMetrics ? '—' : 'Unavailable';
+  if (gazeValue) gazeValue.textContent = '—';
   if (gazeStatus) {
-    gazeStatus.textContent = !usesLandmarkMetrics
-      ? 'Face alignment requires MediaPipe landmarks'
-      : 'Waiting for detection...';
+    gazeStatus.textContent = 'Waiting for face landmarks...';
     gazeStatus.style.color = '';
   }
   if (gazeBar) {
@@ -292,37 +281,19 @@ function updateSelectedModel(value) {
     gazeBar.className = 'metric-bar';
   }
   const coverageLabel = document.getElementById('coverageMetricLabel');
-  if (coverageLabel) coverageLabel.textContent = isYoloMode
-    ? isClassifier ? 'Face coverage' : 'Detection coverage'
-    : 'Face coverage';
+  if (coverageLabel) coverageLabel.textContent = 'Face coverage';
   const averageLabel = document.getElementById('averageMetricLabel');
-  if (averageLabel) averageLabel.textContent = isYoloMode
-    ? isClassifier ? 'Avg. EAR' : 'Target confidence'
-    : 'Avg. EAR';
+  if (averageLabel) averageLabel.textContent = 'Avg. EAR';
   const faceDetected = document.getElementById('faceDetected');
-  if (faceDetected) faceDetected.textContent = isYoloMode && !isClassifier ? '—' : 'No';
+  if (faceDetected) faceDetected.textContent = 'No';
   const confidenceEl = document.getElementById('yoloConfValue');
   if (confidenceEl) confidenceEl.textContent = isYoloMode ? '—' : 'N/A';
 }
 
 function getModelLabel() {
-  if (selectedModel === 'yolo11') {
-    return document.getElementById('yolo11Task').value === 'classification'
-      ? 'YOLO11 classifier + MediaPipe landmarks'
-      : 'YOLO11 ONNX detector';
-  }
-  if (selectedModel === 'yolov8') {
-    return document.getElementById('yolov8Task').value === 'classification'
-      ? 'YOLOv8 classifier + MediaPipe landmarks'
-      : 'YOLOv8 ONNX detector';
-  }
+  if (selectedModel === 'yolo11') return 'YOLO11 classifier + MediaPipe landmarks';
+  if (selectedModel === 'yolov8') return 'YOLOv8 classifier + MediaPipe landmarks';
   return `MediaPipe v${MEDIAPIPE_VERSION}`;
-}
-
-function selectedModelUsesLandmarks() {
-  if (selectedModel === 'mediapipe') return true;
-  return (selectedModel === 'yolov8' || selectedModel === 'yolo11')
-    && document.getElementById(`${selectedModel}Task`).value === 'classification';
 }
 
 async function handleYoloModelFile(model, input) {
@@ -350,7 +321,6 @@ async function handleYoloModelFile(model, input) {
   }
   modelState.file = file;
   modelState.session = null;
-  yoloDetections = [];
   status.textContent = `${file.name} selected (${(file.size / (1024 * 1024)).toFixed(1)} MB); ready to load`;
   status.dataset.state = 'ready';
   const inferenceCell = document.getElementById(`benchInf-${model}`);
@@ -381,8 +351,8 @@ function startDetection() {
       return;
     }
   }
+  prepareAlertAudio();
   const runId = ++detectionRunId;
-  const usesLandmarkMetrics = selectedModelUsesLandmarks();
   isRunning = true;
   sessionStart = Date.now();
   fpsFrames = 0;
@@ -390,6 +360,7 @@ function startDetection() {
   lastScoreUpdate = performance.now();
   lastLoggedAt = 0;
   lastVideoTime = -1;
+  lastInferenceFrameAt = 0;
   perclosSamples = [];
   earBuffer = [];
   closedFrames = 0;
@@ -397,10 +368,8 @@ function startDetection() {
   blinkTrackingStart = null;
   gazeAwayStart = null;
   gazeAwayAlerted = false;
-  yoloDetections = [];
   yoloClassification = null;
   yoloInferenceMs = 0;
-  yoloTargetAlerted = false;
   marBuffer = [];
   currentMAR = 0.20;
   yawnFrames = 0;
@@ -441,7 +410,7 @@ function startDetection() {
   document.getElementById('inferenceValue').textContent = '—';
   document.getElementById('benchInf-mediapipe').textContent = '—';
   document.getElementById('benchFps-mediapipe').textContent = '—';
-  document.getElementById('faceDetected').textContent = usesLandmarkMetrics ? 'No' : '—';
+  document.getElementById('faceDetected').textContent = 'No';
   document.getElementById('earValue').textContent = '—';
   document.getElementById('earStatus').textContent = 'Waiting for detection...';
   document.getElementById('marValue').textContent = '—';
@@ -468,15 +437,15 @@ function startDetection() {
   document.querySelectorAll('#yoloModelSettings input, #yoloModelSettings select').forEach(input => { input.disabled = true; });
   document.getElementById('startBtn').classList.add('hidden');
   document.getElementById('stopBtn').classList.remove('hidden');
-  document.getElementById('loadingMessage').textContent = usesLandmarkMetrics && selectedModel !== 'mediapipe'
+  document.getElementById('loadingMessage').textContent = selectedModel !== 'mediapipe'
     ? `Loading ${selectedModel} and MediaPipe landmark models...`
-    : selectedModel === 'mediapipe' ? 'Loading MediaPipe model...' : `Loading ${selectedModel} ONNX model...`;
+    : 'Loading MediaPipe face landmarker...';
   document.getElementById('videoLoading').classList.remove('hidden');
   document.getElementById('activeModelValue').textContent = getModelLabel();
   setStatus(
-    usesLandmarkMetrics && selectedModel !== 'mediapipe'
+    selectedModel !== 'mediapipe'
       ? `Loading ${selectedModel} classifier and face landmarks...`
-      : selectedModel === 'mediapipe' ? 'Loading MediaPipe detector...' : `Loading ${selectedModel} detector...`,
+      : 'Loading MediaPipe face landmarker...',
     true
   );
   updateEvaluation();
@@ -487,6 +456,10 @@ function startDetection() {
 function stopDetection() {
   detectionRunId++;
   isRunning = false;
+  document.getElementById('alertOverlay').classList.add('hidden');
+  activeAlertType = null;
+  document.getElementById('dismissAlert').classList.remove('hidden');
+  stopVoice();
   const video = document.getElementById('video');
   if (videoFrameCallbackId !== null && typeof video?.cancelVideoFrameCallback === 'function') {
     video.cancelVideoFrameCallback(videoFrameCallbackId);
@@ -523,10 +496,8 @@ function resetStats() {
   drowsinessScore = 0;
   currentFps = 0;
   lastInferenceMs = 0;
-  yoloDetections = [];
   yoloClassification = null;
   yoloInferenceMs = 0;
-  yoloTargetAlerted = false;
   earBuffer = [];
   perclosSamples = [];
   eyeClosedStart = null;
@@ -567,7 +538,7 @@ function resetStats() {
   document.getElementById('inferenceValue').textContent = '—';
   document.getElementById('benchInf-mediapipe').textContent = '—';
   document.getElementById('benchFps-mediapipe').textContent = '—';
-  document.getElementById('faceDetected').textContent = selectedModelUsesLandmarks() ? 'No' : '—';
+  document.getElementById('faceDetected').textContent = 'No';
   document.getElementById('earValue').textContent = '—';
   document.getElementById('marValue').textContent = '—';
   document.getElementById('marBar').style.width = '0%';
@@ -586,6 +557,7 @@ function resetStats() {
   document.getElementById('perclosBar').style.width = '0%';
   document.getElementById('perclosCoverage').textContent = 'Waiting for face tracking';
   document.getElementById('alertOverlay').classList.add('hidden');
+  activeAlertType = null;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -671,33 +643,14 @@ async function loadYoloModel(model) {
 function getYoloConfig(model) {
   const labelsText = document.getElementById(`${model}Labels`).value;
   const classNames = labelsText.split(',').map(label => label.trim()).filter(Boolean);
-  const targetText = document.getElementById(`${model}DrowsyClasses`).value.trim();
-  const targetIdValues = targetText ? targetText.split(',').map(value => value.trim()) : [];
-  if (targetIdValues.some(value => !/^\d+$/.test(value))) {
-    throw new Error('Drowsy class IDs must be non-negative integers separated by commas.');
+  if (classNames.length < 2) {
+    throw new Error('Enter all classifier labels in model order, separated by commas.');
   }
-  const targetClassIds = targetIdValues.map(Number);
-  if (targetClassIds.some(value => !Number.isInteger(value) || value < 0)) {
-    throw new Error('Drowsy class IDs must be non-negative integers separated by commas.');
-  }
-
-  const threshold = Number(document.getElementById(`${model}Confidence`).value);
-  if (!Number.isFinite(threshold) || threshold < 0.01 || threshold > 0.99) {
-    throw new Error('YOLO score threshold must be between 0.01 and 0.99.');
-  }
-  const task = document.getElementById(`${model}Task`).value;
-  if (task === 'classification') {
-    if (classNames.length < 2) {
-      throw new Error('Enter all classifier labels in model order, separated by commas.');
-    }
-    if (targetClassIds.some(classId => classId >= classNames.length)) {
-      throw new Error(`Target class IDs must be less than the classifier class count (${classNames.length}).`);
-    }
-  }
-  return { classNames, targetClassIds, threshold, task };
+  return { classNames };
 }
 
-function prepareYoloInput(video, size, task) {
+function prepareYoloInput(video) {
+  const size = 224;
   if (!yoloInputCanvas) {
     yoloInputCanvas = document.createElement('canvas');
   }
@@ -706,29 +659,12 @@ function prepareYoloInput(video, size, task) {
     yoloInputCanvas.height = size;
     yoloInputContext = yoloInputCanvas.getContext('2d', { willReadFrequently: true });
   }
-  const inputContext = yoloInputContext;
-  let scale = size / Math.max(video.videoWidth, video.videoHeight);
-  let padX = 0;
-  let padY = 0;
-  let imageWidth = size;
-  let imageHeight = size;
-  if (task === 'classification') {
-    const cropSize = Math.min(video.videoWidth, video.videoHeight);
-    const cropX = (video.videoWidth - cropSize) / 2;
-    const cropY = (video.videoHeight - cropSize) / 2;
-    inputContext.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, size, size);
-  } else {
-    scale = Math.min(size / video.videoWidth, size / video.videoHeight);
-    imageWidth = Math.round(video.videoWidth * scale);
-    imageHeight = Math.round(video.videoHeight * scale);
-    padX = Math.floor((size - imageWidth) / 2);
-    padY = Math.floor((size - imageHeight) / 2);
-    inputContext.fillStyle = 'rgb(114, 114, 114)';
-    inputContext.fillRect(0, 0, size, size);
-    inputContext.drawImage(video, padX, padY, imageWidth, imageHeight);
-  }
+  const cropSize = Math.min(video.videoWidth, video.videoHeight);
+  const cropX = (video.videoWidth - cropSize) / 2;
+  const cropY = (video.videoHeight - cropSize) / 2;
+  yoloInputContext.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, size, size);
 
-  const pixels = inputContext.getImageData(0, 0, size, size).data;
+  const pixels = yoloInputContext.getImageData(0, 0, size, size).data;
   const planeSize = size * size;
   const tensorData = new Float32Array(planeSize * 3);
   for (let pixel = 0; pixel < planeSize; pixel++) {
@@ -736,254 +672,54 @@ function prepareYoloInput(video, size, task) {
     tensorData[planeSize + pixel] = pixels[pixel * 4 + 1] / 255;
     tensorData[planeSize * 2 + pixel] = pixels[pixel * 4 + 2] / 255;
   }
-  return {
-    data: tensorData,
-    scale,
-    padX,
-    padY,
-    imageWidth: video.videoWidth,
-    imageHeight: video.videoHeight,
-    inputSize: size
-  };
-}
-
-function decodeYoloOutput(output, model, transform) {
-  const dimensions = output.dims;
-  if (!Array.isArray(dimensions) || dimensions.length < 2 || dimensions.length > 3) {
-    throw new Error('Unsupported YOLO output. Expected a raw detection tensor or end-to-end NMS tensor.');
-  }
-  if (dimensions.length === 3 && dimensions[0] !== 1) {
-    throw new Error('YOLO ONNX export must use a batch size of 1.');
-  }
-  const config = getYoloConfig(model);
-  const data = output.data;
-  const rawRows = dimensions.length === 2 ? dimensions[0] : dimensions[1];
-  const rawColumns = dimensions.length === 2 ? dimensions[1] : dimensions[2];
-  const channelsFirst = rawRows <= 256 && rawColumns > 256;
-  const rowCount = channelsFirst ? rawColumns : rawRows;
-  const columnCount = channelsFirst ? rawRows : rawColumns;
-  const valueAt = (row, column) => channelsFirst
-    ? data[column * rowCount + row]
-    : data[row * columnCount + column];
-
-  const nmsOutput = !channelsFirst && columnCount === 6 && rowCount <= 1_000;
-  const candidates = [];
-  if (nmsOutput) {
-    for (let row = 0; row < rowCount; row++) {
-      const score = valueAt(row, 4);
-      if (!Number.isFinite(score) || score < config.threshold) continue;
-      const classId = Math.round(valueAt(row, 5));
-      if (classId < 0 || (config.classNames.length && classId >= config.classNames.length)) {
-        throw new Error('YOLO output class IDs do not match the configured class labels.');
-      }
-      candidates.push({
-        x1: valueAt(row, 0), y1: valueAt(row, 1),
-        x2: valueAt(row, 2), y2: valueAt(row, 3),
-        score, classId
-      });
-    }
-  } else {
-    let hasObjectness = false;
-    if (config.classNames.length) {
-      if (columnCount === config.classNames.length + 5) hasObjectness = true;
-      else if (columnCount !== config.classNames.length + 4) {
-        throw new Error(
-          `This detection model has ${columnCount - 4} or ${columnCount - 5} classes, but ${config.classNames.length} labels are configured. ` +
-          'Use labels matching the detector, or select Eye-state classification and load the trained eye-state classifier. ' +
-          'The standard yolov8n.onnx COCO model does not detect eye states.'
-        );
-      }
-    }
-    const classCount = columnCount - (hasObjectness ? 5 : 4);
-    if (classCount < 1) throw new Error('YOLO output does not contain any class scores.');
-    if (config.targetClassIds.some(classId => classId >= classCount)) {
-      throw new Error(`Drowsy class IDs must be less than the model class count (${classCount}).`);
-    }
-    for (let row = 0; row < rowCount; row++) {
-      let classId = 0;
-      let classScore = -Infinity;
-      for (let classIndex = 0; classIndex < classCount; classIndex++) {
-        const score = valueAt(row, 4 + (hasObjectness ? 1 : 0) + classIndex);
-        if (score > classScore) {
-          classScore = score;
-          classId = classIndex;
-        }
-      }
-      const objectness = hasObjectness ? valueAt(row, 4) : 1;
-      const score = classScore * objectness;
-      if (!Number.isFinite(score) || score < config.threshold) continue;
-      const centerX = valueAt(row, 0);
-      const centerY = valueAt(row, 1);
-      const width = valueAt(row, 2);
-      const height = valueAt(row, 3);
-      candidates.push({
-        x1: centerX - width / 2,
-        y1: centerY - height / 2,
-        x2: centerX + width / 2,
-        y2: centerY + height / 2,
-        score,
-        classId
-      });
-    }
-  }
-
-  const boxes = candidates.map(candidate => {
-    const normalized = Math.max(
-      Math.abs(candidate.x1), Math.abs(candidate.x2),
-      Math.abs(candidate.y1), Math.abs(candidate.y2)
-    ) <= 1.5;
-    const xScale = normalized ? YOLO_INPUT_SIZE : 1;
-    const yScale = normalized ? YOLO_INPUT_SIZE : 1;
-    const x1 = Math.max(0, Math.min(transform.imageWidth,
-      (candidate.x1 * xScale - transform.padX) / transform.scale));
-    const y1 = Math.max(0, Math.min(transform.imageHeight,
-      (candidate.y1 * yScale - transform.padY) / transform.scale));
-    const x2 = Math.max(0, Math.min(transform.imageWidth,
-      (candidate.x2 * xScale - transform.padX) / transform.scale));
-    const y2 = Math.max(0, Math.min(transform.imageHeight,
-      (candidate.y2 * yScale - transform.padY) / transform.scale));
-    return {
-      x1, y1, x2, y2,
-      score: candidate.score,
-      classId: candidate.classId,
-      label: config.classNames[candidate.classId] || `class ${candidate.classId}`
-    };
-  }).filter(box => box.x2 > box.x1 && box.y2 > box.y1)
-    .sort((left, right) => right.score - left.score);
-  return suppressOverlappingBoxes(boxes).slice(0, 100);
-}
-
-function suppressOverlappingBoxes(boxes) {
-  const selected = [];
-  for (const candidate of boxes) {
-    const area = (candidate.x2 - candidate.x1) * (candidate.y2 - candidate.y1);
-    const overlaps = selected.some(existing => {
-      if (existing.classId !== candidate.classId) return false;
-      const width = Math.max(0, Math.min(candidate.x2, existing.x2) - Math.max(candidate.x1, existing.x1));
-      const height = Math.max(0, Math.min(candidate.y2, existing.y2) - Math.max(candidate.y1, existing.y1));
-      const intersection = width * height;
-      const existingArea = (existing.x2 - existing.x1) * (existing.y2 - existing.y1);
-      return intersection / (area + existingArea - intersection) > 0.45;
-    });
-    if (!overlaps) selected.push(candidate);
-  }
-  return selected;
+  return tensorData;
 }
 
 async function runYoloInference(model, video) {
   const session = yoloModels[model].session;
   const config = getYoloConfig(model);
-  const inputSize = config.task === 'classification' ? 224 : YOLO_INPUT_SIZE;
-  const input = prepareYoloInput(video, inputSize, config.task);
-  const tensor = new window.ort.Tensor('float32', input.data, [1, 3, inputSize, inputSize]);
+  const input = prepareYoloInput(video);
+  const tensor = new window.ort.Tensor('float32', input, [1, 3, 224, 224]);
   const start = performance.now();
   const outputs = await session.run({ [session.inputNames[0]]: tensor });
   const elapsed = performance.now() - start;
   const output = outputs[session.outputNames[0]];
   if (!output) throw new Error('YOLO model output tensor is missing.');
-  if (config.task === 'classification') {
-    if (output.dims.length !== 2 || output.dims[0] !== 1 || output.dims[1] !== config.classNames.length) {
-      throw new Error(`Classifier output must have shape [1, ${config.classNames.length}] to match the configured labels.`);
-    }
-    const values = Array.from(output.data);
-    const total = values.reduce((sum, value) => sum + value, 0);
-    const areProbabilities = values.every(value => value >= 0 && value <= 1) && Math.abs(total - 1) < 0.02;
-    const scores = areProbabilities
-      ? values
-      : (() => {
-          const max = Math.max(...values);
-          const exps = values.map(value => Math.exp(value - max));
-          const sum = exps.reduce((accumulator, value) => accumulator + value, 0);
-          return exps.map(value => value / sum);
-        })();
-    const classId = scores.indexOf(Math.max(...scores));
-    return {
-      classification: {
-        classId,
-        label: config.classNames[classId],
-        score: scores[classId],
-      },
-      inferenceMs: elapsed,
-    };
+  if (output.dims.length !== 2 || output.dims[0] !== 1 || output.dims[1] !== config.classNames.length) {
+    throw new Error(`Classifier output must have shape [1, ${config.classNames.length}] to match the configured labels.`);
   }
+  const values = Array.from(output.data);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const areProbabilities = values.every(value => value >= 0 && value <= 1) && Math.abs(total - 1) < 0.02;
+  const scores = areProbabilities
+    ? values
+    : (() => {
+        const max = Math.max(...values);
+        const exps = values.map(value => Math.exp(value - max));
+        const sum = exps.reduce((accumulator, value) => accumulator + value, 0);
+        return exps.map(value => value / sum);
+      })();
+  const classId = scores.indexOf(Math.max(...scores));
   return {
-    detections: decodeYoloOutput(output, model, input),
-    inferenceMs: elapsed
+    classification: {
+      classId,
+      label: config.classNames[classId],
+      score: scores[classId],
+    },
+    inferenceMs: elapsed,
   };
-}
-
-function drawYoloDetections(detections, model) {
-  const color = model === 'yolo11' ? '#00f2fe' : '#f97316';
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = Math.max(2, canvas.width / 320);
-  ctx.font = `${Math.max(14, canvas.width / 45)}px Inter, sans-serif`;
-  detections.forEach(detection => {
-    const width = detection.x2 - detection.x1;
-    const height = detection.y2 - detection.y1;
-    const text = `${detection.label} ${(detection.score * 100).toFixed(1)}%`;
-    const textWidth = ctx.measureText(text).width;
-    const labelY = Math.max(0, detection.y1 - 24);
-    ctx.strokeRect(detection.x1, detection.y1, width, height);
-    ctx.fillRect(detection.x1, labelY, textWidth + 10, 24);
-    ctx.fillStyle = '#07101b';
-    ctx.fillText(text, detection.x1 + 5, labelY + 17);
-    ctx.fillStyle = color;
-  });
-  ctx.restore();
-}
-
-function updateYoloDetections(model, detections) {
-  yoloDetections = detections;
-  const confidenceEl = document.getElementById('yoloConfValue');
-  const inferenceEl = document.getElementById(`benchInf-${model}`);
-  const fpsEl = document.getElementById(`benchFps-${model}`);
-  const statusEl = document.getElementById(`benchStatus-${model}`);
-  const topDetection = detections[0];
-  if (confidenceEl) {
-    confidenceEl.textContent = topDetection
-      ? `${(topDetection.score * 100).toFixed(1)}% · ${topDetection.label}`
-      : 'No detections';
-  }
-  if (inferenceEl) inferenceEl.textContent = `${yoloInferenceMs.toFixed(1)} ms`;
-  if (fpsEl) fpsEl.textContent = `${currentFps} fps`;
-  const config = getYoloConfig(model);
-  const targetDetection = detections.find(detection =>
-    config.targetClassIds.includes(detection.classId)
-  );
-  if (statusEl) {
-    statusEl.textContent = targetDetection
-      ? `${detections.length} ${detections.length === 1 ? 'detection' : 'detections'} · target class ${targetDetection.classId}`
-      : `${detections.length} ${detections.length === 1 ? 'detection' : 'detections'}`;
-  }
-
-  if (!targetDetection) {
-    yoloTargetAlerted = false;
-    return;
-  }
-  if (yoloTargetAlerted) return;
-  yoloTargetAlerted = true;
-  triggerAlert({
-    message: `The YOLO model detected ${targetDetection.label}.`,
-    voiceText: `Drowsiness class detected: ${targetDetection.label}.`,
-    soundType: 'closure',
-    alertType: 'yolo'
-  });
 }
 
 async function startRealDetection(runId) {
   try {
-    if (selectedModelUsesLandmarks()) {
-      await loadSelectedModel();
-      if (runId !== detectionRunId) {
-        if (mediaPipeLandmarker) mediaPipeLandmarker.close();
-        mediaPipeLandmarker = null;
-        return;
-      }
+    await loadSelectedModel();
+    if (runId !== detectionRunId) {
+      if (mediaPipeLandmarker) mediaPipeLandmarker.close();
+      mediaPipeLandmarker = null;
+      return;
     }
     if (selectedModel === 'yolov8' || selectedModel === 'yolo11') {
-      document.getElementById('loadingMessage').textContent = `Loading ${selectedModel} ONNX model...`;
+      document.getElementById('loadingMessage').textContent = `Loading ${selectedModel} ONNX classifier...`;
       await loadYoloModel(selectedModel);
       if (runId !== detectionRunId) return;
     }
@@ -1009,9 +745,7 @@ async function startRealDetection(runId) {
     setCameraBadge(true);
     const activeStatus = selectedModel === 'mediapipe'
       ? 'MediaPipe active'
-      : selectedModelUsesLandmarks()
-        ? `${selectedModel} + MediaPipe active`
-        : `${selectedModel} ONNX active`;
+      : `${selectedModel} classifier + MediaPipe active`;
     setStatus(activeStatus, true);
     lastVideoTime = -1;
     detectRealFrame(runId);
@@ -1068,26 +802,27 @@ async function detectRealFrame(runId) {
     scheduleDetectionFrame(video, runId);
     return;
   }
+  const frameStartedAt = performance.now();
+  const maxInferenceFps = selectedModel === 'mediapipe'
+    ? MAX_INFERENCE_FPS
+    : YOLO_MAX_INFERENCE_FPS;
+  if (frameStartedAt - lastInferenceFrameAt < 1000 / maxInferenceFps) {
+    scheduleDetectionFrame(video, runId);
+    return;
+  }
   lastVideoTime = video.currentTime;
+  lastInferenceFrameAt = frameStartedAt;
   isProcessingFrame = true;
   try {
     if (selectedModel === 'yolov8' || selectedModel === 'yolo11') {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const yoloInference = runYoloInference(selectedModel, video);
-      if (selectedModelUsesLandmarks()) {
-        const faceMetrics = detectFaceLandmarkMetrics(video);
-        processDetectionSample(faceMetrics.ear, faceMetrics.faceDetected);
-      }
+      const faceMetrics = detectFaceLandmarkMetrics(video);
+      processDetectionSample(faceMetrics.ear, faceMetrics.faceDetected);
       const yoloResult = await yoloInference;
       yoloInferenceMs = yoloResult.inferenceMs;
-      if (yoloResult.classification) {
-        updateYoloClassification(selectedModel, yoloResult.classification);
-        drawYoloClassification(yoloResult.classification, selectedModel);
-      } else {
-        updateYoloDetections(selectedModel, yoloResult.detections);
-        drawYoloDetections(yoloResult.detections, selectedModel);
-        processYoloSample(selectedModel, yoloResult.detections);
-      }
+      updateYoloClassification(selectedModel, yoloResult.classification);
+      drawYoloClassification(yoloResult.classification, selectedModel);
     } else {
       const faceMetrics = detectFaceLandmarkMetrics(video);
       processDetectionSample(faceMetrics.ear, faceMetrics.faceDetected);
@@ -1105,52 +840,6 @@ async function detectRealFrame(runId) {
     if (runId === detectionRunId) calcFPS();
     isProcessingFrame = false;
     scheduleDetectionFrame(video, runId);
-  }
-}
-
-function processYoloSample(model, detections) {
-  const now = Date.now();
-  const config = getYoloConfig(model);
-  const targetDetection = detections.find(detection => config.targetClassIds.includes(detection.classId));
-  const inferenceEl = document.getElementById('inferenceValue');
-  const detectionCount = document.getElementById('faceDetected');
-  const headAlignment = document.getElementById('headAlignmentValue');
-  if (inferenceEl) inferenceEl.textContent = `${yoloInferenceMs.toFixed(1)} ms`;
-  if (detectionCount) detectionCount.textContent = String(detections.length);
-  if (headAlignment) headAlignment.textContent = 'Unavailable';
-  recordEvaluationSample(0, detections.length > 0);
-  document.getElementById('evaluationScore').textContent = 'LIVE';
-  document.getElementById('evaluationStatus').textContent =
-    config.targetClassIds.length
-      ? `Alerts on the first detection of class IDs: ${config.targetClassIds.join(', ')}.`
-      : 'YOLO object detection only; no drowsiness alert classes are configured.';
-  document.getElementById('faceCoverage').textContent =
-    evaluation.frames ? `${((evaluation.faceFrames / evaluation.frames) * 100).toFixed(1)}%` : '--';
-  document.getElementById('averageEar').textContent = targetDetection
-    ? `${(targetDetection.score * 100).toFixed(1)}%`
-    : '--';
-  document.getElementById('alertRate').textContent =
-    sessionStart ? (alertCount / Math.max((now - sessionStart) / 60000, 1 / 60)).toFixed(1) : '0.0';
-  document.getElementById('framesSampled').textContent = String(evaluation.frames);
-  document.getElementById('perclosValue').textContent = 'Unavailable in YOLO-only mode';
-  document.getElementById('earValue').textContent = 'Unavailable';
-  document.getElementById('marValue').textContent = 'Unavailable';
-  document.getElementById('closureDuration').textContent = 'Unavailable';
-  document.getElementById('blinkCount').textContent = '—';
-  document.getElementById('yawnCount').textContent = '—';
-  document.getElementById('longClosureCount').textContent = '—';
-  if (now - lastLoggedAt >= LOG_INTERVAL_MS) {
-    logEvent('sample', {
-      selectedMode: selectedModel,
-      inferenceBackend: `${model}-onnx`,
-      inferenceMs: Number(yoloInferenceMs.toFixed(2)),
-      fps: currentFps,
-      detectionCount: detections.length,
-      targetClassIds: config.targetClassIds.join(','),
-      targetConfidence: targetDetection ? Number(targetDetection.score.toFixed(4)) : '',
-      targetClass: targetDetection?.label || ''
-    });
-    lastLoggedAt = now;
   }
 }
 
@@ -1211,16 +900,29 @@ function resetFaceNotDetected() {
   const headValEl = document.getElementById('headAlignmentValue');
   if (headValEl) headValEl.textContent = '0% · Missing';
 
-  const now = Date.now();
+  updateGazeAwayAlert(Date.now(), 'Face alignment is below 70%. Please face the camera.');
+}
+
+function updateGazeAwayAlert(now, message) {
   if (gazeAwayStart === null) gazeAwayStart = now;
-  if (!gazeAwayAlerted && now - gazeAwayStart >= GAZE_AWAY_ALERT_MS) {
-    gazeAwayAlerted = triggerAlert({
-      message: 'Face alignment is below 70%. Please face the camera.',
-      voiceText: 'Please face the camera.',
-      soundType: 'gaze',
-      alertType: 'gaze'
-    });
-  }
+  if (now - gazeAwayStart < GAZE_AWAY_ALERT_MS) return;
+  if (gazeAwayAlerted && now - lastAlertTime < ALERT_REPEAT_INTERVAL_MS) return;
+  gazeAwayAlerted = triggerAlert({
+    message,
+    voiceText: 'Please face the camera.',
+    soundType: 'gaze',
+    alertType: 'gaze'
+  });
+}
+
+function clearGazeAwayAlert() {
+  gazeAwayStart = null;
+  gazeAwayAlerted = false;
+  if (activeAlertType !== 'gaze' && activeAlertType !== 'noface') return;
+  document.getElementById('alertOverlay').classList.add('hidden');
+  document.getElementById('dismissAlert').classList.remove('hidden');
+  activeAlertType = null;
+  stopVoice();
 }
 
 function scheduleDetectionFrame(video, runId) {
@@ -1259,12 +961,9 @@ function processDetectionSample(ear, faceDetected) {
     const closureMs = updateClosureMetrics(closed);
     closedFrames = closed ? closedFrames + 1 : 0;
     if (closed && closureMs >= sens.alertMs) {
-      triggerAlert({
-        message: 'Please open your eyes.',
-        voiceText: 'Please open your eyes.',
-        alertType: 'closure',
-        soundType: 'closure'
-      });
+      updateEyeClosureAlert(now);
+    } else if (!closed) {
+      clearEyeClosureAlert();
     }
     const elapsedSeconds = Math.min((performance.now() - lastScoreUpdate) / 1000, 0.25);
     drowsinessScore = closed
@@ -1287,6 +986,7 @@ function processDetectionSample(ear, faceDetected) {
     closedFrames = 0;
     recordEvaluationSample(0, false);
     updateClosureMetrics(null);
+    clearEyeClosureAlert();
     document.getElementById('faceDetected').textContent = 'No';
     document.getElementById('earValue').textContent = '—';
     document.getElementById('earStatus').textContent = 'No face detected';
@@ -1304,10 +1004,8 @@ function processDetectionSample(ear, faceDetected) {
       selectedMode: selectedModel,
       inferenceBackend: selectedModel === 'mediapipe'
         ? 'mediapipe-face-landmarker'
-        : selectedModelUsesLandmarks()
-          ? `${selectedModel}-onnx-classifier+mediapipe-face-landmarker`
-          : `${selectedModel}-onnx`,
-      inferenceBackendVersion: selectedModelUsesLandmarks() ? MEDIAPIPE_VERSION : '',
+        : `${selectedModel}-onnx-classifier+mediapipe-face-landmarker`,
+      inferenceBackendVersion: MEDIAPIPE_VERSION,
       perclos60s: perclos === null ? '' : Number(perclos.toFixed(2)),
       trackingCoverage60s: Number(perclosResult.coverage.toFixed(2)),
       inferenceMs: Number(lastInferenceMs.toFixed(2)),
@@ -1315,12 +1013,11 @@ function processDetectionSample(ear, faceDetected) {
       mar: faceDetected ? Number(currentMAR.toFixed(3)) : '',
       yawnThreshold: MAR_THRESHOLD,
       yoloInferenceMs: selectedModel === 'mediapipe' ? '' : Number(yoloInferenceMs.toFixed(2)),
-      yoloDetectionCount: selectedModel === 'mediapipe' ? '' : yoloDetections.length,
       yoloConfidence: yoloClassification
         ? Number(yoloClassification.score.toFixed(4))
-        : yoloDetections[0] ? Number(yoloDetections[0].score.toFixed(4)) : '',
-      yoloClass: yoloClassification?.label || yoloDetections[0]?.label || '',
-      yoloClassId: yoloClassification?.classId ?? yoloDetections[0]?.classId ?? '',
+        : '',
+      yoloClass: yoloClassification?.label || '',
+      yoloClassId: yoloClassification?.classId ?? '',
       earThreshold: sens.ear
     });
     lastLoggedAt = now;
@@ -1437,8 +1134,7 @@ function updateGazeAttention(landmarks) {
       gazeStatusElem.textContent = `Optimal · Frontal face alignment (${currentHeadAlignment}% ≥ 70%)`;
       gazeStatusElem.style.color = 'var(--accent)';
     }
-    gazeAwayStart = null;
-    gazeAwayAlerted = false;
+    clearGazeAwayAlert();
     return;
   }
 
@@ -1448,15 +1144,10 @@ function updateGazeAttention(landmarks) {
     gazeStatusElem.style.color = 'var(--danger)';
   }
 
-  if (gazeAwayStart === null) gazeAwayStart = now;
-  if (!gazeAwayAlerted && now - gazeAwayStart >= GAZE_AWAY_ALERT_MS) {
-    gazeAwayAlerted = triggerAlert({
-      message: `Face alignment is below 70%. ${gazeTurnDirection}. Please face the camera.`,
-      voiceText: 'Please face the camera.',
-      soundType: 'gaze',
-      alertType: 'gaze'
-    });
-  }
+  updateGazeAwayAlert(
+    now,
+    `Face alignment is below 70%. ${gazeTurnDirection}. Please face the camera.`
+  );
 }
 
 function updatePerclos(faceDetected, closed, now) {
@@ -1718,7 +1409,7 @@ function drawModelMesh(landmarks, model) {
   ctx.beginPath();
   for (let i = 0; i < landmarks.length; i += (model === 'mediapipe' ? 6 : 4)) {
     const p = landmarks[i];
-    const x = p.x * canvas.width;
+    const x = (1 - p.x) * canvas.width;
     const y = p.y * canvas.height;
     minX = Math.min(minX, x); minY = Math.min(minY, y);
     maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
@@ -1740,16 +1431,16 @@ function drawModelMesh(landmarks, model) {
 
   // Eye contours (colour-matched)
   drawContourColoured([33,160,158,133,153,144].map(i => ({
-    x: landmarks[i].x * canvas.width, y: landmarks[i].y * canvas.height
+    x: (1 - landmarks[i].x) * canvas.width, y: landmarks[i].y * canvas.height
   })), isDrowsy, model);
   drawContourColoured([362,385,387,263,373,380].map(i => ({
-    x: landmarks[i].x * canvas.width, y: landmarks[i].y * canvas.height
+    x: (1 - landmarks[i].x) * canvas.width, y: landmarks[i].y * canvas.height
   })), isDrowsy, model);
 
   // YOLO modes add a mouth contour for the MAR overlay.
   if (model === 'yolov8' || model === 'yolo11') {
     drawContourColoured([61,185,40,39,37,0,267,269,270,409,291].map(i => ({
-      x: landmarks[i].x * canvas.width, y: landmarks[i].y * canvas.height
+      x: (1 - landmarks[i].x) * canvas.width, y: landmarks[i].y * canvas.height
     })), isDrowsy, model);
   }
 
@@ -1786,8 +1477,6 @@ function drawContourColoured(points, danger, model) {
 
 function drawHeadAlignmentHUD(model) {
   ctx.save();
-  ctx.translate(canvas.width, 0);
-  ctx.scale(-1, 1);
 
   const isOk = currentHeadAlignment >= HEAD_ALIGNMENT_THRESHOLD;
   const badgeText = isOk
@@ -1886,8 +1575,13 @@ function triggerAlert({
   alertType = 'closure',
 } = {}) {
   const now = Date.now();
-  if (now - lastAlertTime < 7000) return false;
+  if (now - lastAlertTime < ALERT_REPEAT_INTERVAL_MS) return false;
   lastAlertTime = now;
+  activeAlertType = alertType;
+  document.getElementById('dismissAlert').classList.toggle(
+    'hidden',
+    alertType === 'gaze' || alertType === 'noface' || alertType === 'closure'
+  );
   alertCount++;
   document.getElementById('alertCount').textContent = alertCount;
 
@@ -1902,7 +1596,6 @@ function triggerAlert({
       alertType === 'yawn'    ? 'YAWN / FATIGUE EVENT' :
       alertType === 'gaze'    ? 'GAZE DEVIATION ALERT' :
       alertType === 'noface'  ? 'DRIVER NOT DETECTED'  :
-      alertType === 'yolo'    ? 'YOLO CLASS DETECTED'  :
       'MONITORING ALERT';
   }
 
@@ -1915,15 +1608,12 @@ function triggerAlert({
       alertType === 'closure' ? 'Prolonged Eye Closure' :
       alertType === 'yawn'    ? 'Yawn / Mouth Opening' :
       alertType === 'gaze'    ? 'Head / Gaze Turned Away' :
-      alertType === 'yolo'    ? 'Configured YOLO drowsy class' :
       'Face Not Detected';
   }
   const diagRisk = document.getElementById('alertDiagRisk');
   if (diagRisk) {
-    diagRisk.textContent = alertType === 'yolo'
-      ? 'CLASS MATCH'
-      : drowsinessScore >= 60 ? 'HIGH' : drowsinessScore >= 30 ? 'MODERATE' : 'LOW';
-    diagRisk.style.color = alertType === 'yolo' || drowsinessScore >= 60
+    diagRisk.textContent = drowsinessScore >= 60 ? 'HIGH' : drowsinessScore >= 30 ? 'MODERATE' : 'LOW';
+    diagRisk.style.color = drowsinessScore >= 60
       ? '#ef4444'
       : drowsinessScore >= 30 ? '#f59e0b' : '#00d4aa';
   }
@@ -1932,18 +1622,18 @@ function triggerAlert({
     selectedMode: selectedModel,
     inferenceBackend: selectedModel === 'mediapipe'
       ? 'mediapipe-face-landmarker'
-      : selectedModelUsesLandmarks()
-        ? `${selectedModel}-onnx-classifier+mediapipe-face-landmarker`
-        : `${selectedModel}-onnx`,
-    inferenceBackendVersion: selectedModelUsesLandmarks() ? MEDIAPIPE_VERSION : '',
+      : `${selectedModel}-onnx-classifier+mediapipe-face-landmarker`,
+    inferenceBackendVersion: MEDIAPIPE_VERSION,
     score: Number(drowsinessScore.toFixed(1)),
     closedFrames,
     closureDurationMs: eyeClosedStart ? Date.now() - eyeClosedStart : 0,
     perclos60s: document.getElementById('perclosValue').textContent,
     earThreshold: sens.ear,
     mar: Number(currentMAR.toFixed(3)),
-    yoloConfidence: yoloDetections[0] ? Number(yoloDetections[0].score.toFixed(4)) : '',
-    yoloClass: yoloDetections[0]?.label || '',
+    yoloConfidence: yoloClassification
+      ? Number(yoloClassification.score.toFixed(4))
+      : '',
+    yoloClass: yoloClassification?.label || '',
     alertType,
     headAlignment: currentHeadAlignment
   });
@@ -1959,7 +1649,10 @@ function triggerAlert({
 }
 
 function dismissAlert() {
+  if (activeAlertType === 'gaze' || activeAlertType === 'noface' || activeAlertType === 'closure') return;
   document.getElementById('alertOverlay').classList.add('hidden');
+  document.getElementById('dismissAlert').classList.remove('hidden');
+  activeAlertType = null;
   drowsinessScore = Math.max(0, drowsinessScore - 30);
   stopVoice();
 }
@@ -1973,7 +1666,12 @@ initEmojiEyeTracking();
 
 function playAlertSound(type = 'closure') {
   try {
-    const ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextConstructor) return;
+    const ctx2 = alertAudioContext || (alertAudioContext = new AudioContextConstructor());
+    if (ctx2.state === 'suspended') {
+      ctx2.resume().catch(error => console.warn('Could not resume alert audio:', error));
+    }
     const now = ctx2.currentTime;
 
     if (type === 'gaze') {
@@ -2007,6 +1705,19 @@ function playAlertSound(type = 'closure') {
       osc.start(now); osc.stop(now + 0.8);
     }
   } catch(e) { console.warn('AudioContext alert failed:', e); }
+}
+
+function prepareAlertAudio() {
+  const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextConstructor) return;
+  try {
+    if (!alertAudioContext) alertAudioContext = new AudioContextConstructor();
+    if (alertAudioContext.state === 'suspended') {
+      alertAudioContext.resume().catch(error => console.warn('Could not resume alert audio:', error));
+    }
+  } catch (error) {
+    console.warn('Could not prepare alert audio:', error);
+  }
 }
 
 function updateStatCards(ear, closure, earSt, closeSt) {
