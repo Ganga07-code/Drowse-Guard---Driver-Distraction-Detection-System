@@ -56,39 +56,6 @@ center_mirror,front,front_right,infotainment,left,left_mirror,right,right_mirror
 
 They display an experimental YOLO prediction but do not trigger gaze alerts. Gaze alerts come from MediaPipe face alignment.
 
-## 🎤 Presentation brief
-
-### Project summary
-
-DrowseGuard is a browser-based driver-monitoring research prototype. It processes a live camera stream locally and demonstrates face/eye monitoring with MediaPipe and optional YOLO ONNX models. It is an educational prototype, not a validated driver-safety system.
-
-### Processing flow
-
-1. The browser requests camera permission and displays a horizontally mirrored preview.
-2. The selected runtime processes up to 15 frames per second for MediaPipe or 10 frames per second for YOLO inference.
-3. MediaPipe derives face landmarks and, when enabled, eye aspect ratio (EAR), mouth measurements, and a face-alignment estimate.
-4. In hybrid mode, YOLO ONNX classifies the full frame while MediaPipe—not the YOLO class prediction—drives eye-closure, blink, and face-alignment metrics and alerts.
-5. The dashboard updates metrics and records session samples and alert events in memory; logs can be exported as CSV.
-
-### Model comparison
-
-| Runtime | Mode in this project | What it reports | Alert behavior |
-| --- | --- | --- | --- |
-| MediaPipe Face Landmarker | Landmark monitoring | Face landmarks, EAR/blinks, mouth measurements, face alignment | MediaPipe thresholds |
-| YOLOv8 ONNX + MediaPipe | Full-frame classifier + landmarks | Class score, inference time, pipeline FPS, MediaPipe metrics | MediaPipe thresholds |
-| YOLO11 ONNX + MediaPipe | Full-frame classifier + landmarks | Class score, inference time, pipeline FPS, MediaPipe metrics | MediaPipe thresholds |
-
-The YOLO class score is experimental and is not used to trigger alerts. These modes are not a like-for-like accuracy comparison because all alerting relies on MediaPipe landmark measurements.
-
-### Suggested slide outline
-
-1. **Problem and motivation:** demonstrate how prolonged eye closure or loss of face alignment can be monitored; do not present this prototype as a real driving aid.
-2. **Project objective:** show local, browser-based experimentation with camera input, MediaPipe landmarks, and optional YOLO ONNX inference.
-3. **System architecture:** camera → frame processing → selected model/runtime → dashboard metrics and configured alerts.
-4. **Models and features:** explain MediaPipe, YOLOv8 + MediaPipe, and YOLO11 + MediaPipe. Emphasize that the YOLO classifiers report class scores while MediaPipe drives alerts.
-5. **Demo and measurements:** show a controlled test, live inference/FPS telemetry, alert behavior, and exported CSV.
-6. **Results, limitations, and next steps:** report only measured results; discuss dataset size, class balance, device dependence, and the need for independent validation.
-
 ## Results and Analysis
 
 ### Recorded validation results
@@ -146,21 +113,6 @@ In this benchmark, YOLOv8n was the fastest runtime at 12.1 ms and achieved the h
 The test environment was not specified, so these values should be presented as results for the recorded run rather than guaranteed cross-device performance. The app currently caps MediaPipe at 15 inference FPS and YOLO hybrid modes at 10 inference FPS. FPS is therefore controlled partly by application limits and browser hardware, not only by model speed. The benchmark is more useful for this device and browser configuration than for a general claim across different systems.
 
 Smaller YOLO inference times do not prove that YOLO drives faster alerts, because both hybrid modes still use MediaPipe for eye-closure and face-alignment decisions. The measured timing difference shows faster YOLO classifier processing, while end-to-end alert reaction time requires a separate synchronized event-onset test.
-
-### Alert reaction-time benchmark
-
-No controlled, end-to-end alert reaction-time results have been recorded for the three modes. Do not substitute a configured alert threshold or model inference duration for reaction time. YOLO class scores do not trigger alerts; in both hybrid modes the alert reaction time reflects MediaPipe landmark monitoring.
-
-To create a defensible result table:
-
-1. Use the same recording, camera or device, browser, resolution, lighting, and sensitivity for all modes.
-2. Synchronize a known ground-truth event onset with the recording and label at least 10 trials.
-3. Warm up each model before measurement and export each session CSV.
-4. Record each model's median inference time and pipeline FPS.
-5. Calculate end-to-end alert reaction time as `alert timestamp - event-onset timestamp`.
-6. Report median, minimum, maximum, standard deviation or range, browser/device, model file, and trial count.
-
-Keep inference time and end-to-end reaction time separate. The app's telemetry does not provide ground-truth event onset.
 
 ### Which model performs best?
 
