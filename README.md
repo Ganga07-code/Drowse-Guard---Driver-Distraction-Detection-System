@@ -1,4 +1,4 @@
-# 😴 DrowseGuard
+# 🚗 Vigilant Drive AI-Powered Real-Time Driver Distraction Monitoring System
 
 **A browser-based driver-monitoring research prototype** for exploring eye closure, blinks, and frontal-face alignment.
 
